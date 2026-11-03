@@ -1,0 +1,75 @@
+{
+  "nombre": "Rúbrica institucional de sustentación de trabajo de grado — UTS",
+  "periodo": "2026",
+  "escala": "0.0 a 5.0 (ponderada)",
+  "nota": "Espejo documental de la rúbrica codificada en backend/app/services/evaluator.py. Criterios derivados del objetivo específico 1 del proyecto y de la revisión de literatura (Martínez-Comesaña et al., 2023).",
+  "criterios": [
+    {
+      "codigo": "pertinencia",
+      "etiqueta": "Pertinencia de la respuesta",
+      "peso": 0.30,
+      "descriptor": "Grado en el que la respuesta se dirige de forma explícita a la pregunta formulada y al problema real del trabajo de grado.",
+      "bandas": {
+        "5.0": "Responde la pregunta de forma directa, explícita y conectada con el problema del trabajo.",
+        "4.0": "Responde con orientación clara, aunque alguna idea queda implícita.",
+        "3.0": "Responde parcialmente, con desvíos ocasionales del foco del problema.",
+        "2.0": "La conexión con la pregunta es difusa; se requieren repreguntas.",
+        "0.0": "La respuesta no aborda la pregunta formulada."
+      }
+    },
+    {
+      "codigo": "coherencia",
+      "etiqueta": "Coherencia y fluidez argumentativa",
+      "peso": 0.25,
+      "descriptor": "Organización lógica de las ideas, conectores discursivos y capacidad de sostener un hilo argumental sin contradicciones.",
+      "bandas": {
+        "5.0": "Discurso hilado: idea → explicación → evidencia, sin contradicciones.",
+        "4.0": "Estructura clara con transiciones adecuadas.",
+        "3.0": "Ideas relacionadas pero con saltos argumentales.",
+        "2.0": "Discurso fragmentado o repetitivo.",
+        "0.0": "No hay hilo argumental identificable."
+      }
+    },
+    {
+      "codigo": "fundamentacion",
+      "etiqueta": "Fundamentación teórica",
+      "peso": 0.25,
+      "descriptor": "Uso consciente de referentes conceptuales, autores y evidencias para justificar las afirmaciones realizadas.",
+      "bandas": {
+        "5.0": "Cita referentes y evidencias de su propia investigación con precisión.",
+        "4.0": "Apoya sus afirmaciones en referentes verificables de su marco teórico.",
+        "3.0": "Afirma sin responder siempre de dónde proviene el respaldo.",
+        "2.0": "Respaldos vagos ('estudios dicen') sin afiliar a autores o datos.",
+        "0.0": "Afirma sin ningún tipo de respaldo."
+      }
+    },
+    {
+      "codigo": "metodologia",
+      "etiqueta": "Dominio metodológico",
+      "peso": 0.20,
+      "descriptor": "Dominio del cómo: procedimiento, instrumentos, datos y decisiones técnicas del proyecto, explicadas con precisión.",
+      "bandas": {
+        "5.0": "Explica el procedimiento paso a paso, justifica cada decisión técnica.",
+        "4.0": "Describe el método con precisión, justifica la elección.",
+        "3.0": "Describe el método pero sin argumentar por qué esa vía.",
+        "2.0": "Conoce conceptos del método pero no el procedimiento propio.",
+        "0.0": "No demuestra dominio del procedimiento realizado."
+      }
+    }
+  ],
+  "bandas_cualitativas": [
+    {"desde": 4.5, "etiqueta": "Excelente",     "descripcion": "Dominio sobresaliente: argumentación sólida, precisa y bien respaldada."},
+    {"desde": 3.5, "etiqueta": "Sobresaliente", "descripcion": "Buen dominio general con observaciones menores de forma o respaldo."},
+    {"desde": 2.5, "etiqueta": "Aceptable",     "descripcion": "Comprensión parcial del tema: hay vacíos que ameritan precisión."},
+    {"desde": 1.5, "etiqueta": "Insuficiente",  "descripcion": "Respuesta débil: falta profundidad, respaldo o conexión con la tesis."},
+    {"desde": 0.0, "etiqueta": "Crítico",       "descripcion": "La respuesta no da luces sobre el eje preguntado; se sugiere orientación."}
+  ],
+  "ejes_tematicos": [
+    {"codigo": "contexto",    "etiqueta": "Contextualización y motivación"},
+    {"codigo": "problema",    "etiqueta": "Problema, propósito y alcance"},
+    {"codigo": "teoria",      "etiqueta": "Marco teórico y referentes"},
+    {"codigo": "metodo",      "etiqueta": "Metodología y diseño"},
+    {"codigo": "resultados",  "etiqueta": "Resultados y análisis"},
+    {"codigo": "aporte",      "etiqueta": "Conclusiones y aporte"}
+  ]
+}

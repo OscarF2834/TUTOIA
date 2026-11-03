@@ -1,0 +1,20 @@
+# ── Python ────────────────────────────────────
+__pycache__/
+*.py[cod]
+backend/.venv/
+.venv/
+
+# ── Node / React ──────────────────────────────
+node_modules/
+frontend/dist/
+
+# ── Config y ambiente ─────────────────────────
+backend/.env
+*.local
+
+# ── Runtime de Tutoia (sesiones y actas del MVP) ──
+backend/app/storage/
+
+# ── Sistema ───────────────────────────────────
+.DS_Store
+Thumbs.db
