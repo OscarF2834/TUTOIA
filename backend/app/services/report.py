@@ -25,20 +25,19 @@ from app.services.evaluator import BANDAS, CRITERIOS, banda_de
 # ═══════════════════════════════════════════════════════════════════
 def generar_acta(sesion) -> Path:
     """Genera y persiste el acta de la sesión. Devuelve la ruta del archivo."""
-    escape = lambda s: html.escape(str(s), quote=False)  # noqa: E731
+    escape = lambda s: html.escape(str(s), quote=True)  # noqa: E731
 
     # ── Cifras consolidadas ────────────────────────────────────────
     nota = sesion.nota_final if sesion.nota_final is not None else 0.0
     banda_etiqueta, banda_desc = banda_de(nota)
-    fecha = datetime.fromtimestamp(sesion.creada).strftime("%d de %B de %Y · %H:%M")
-    # Cromamos la fecha en español si el entorno lo permite (fallback manual)
     MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
              "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+    dt_creada = datetime.fromtimestamp(sesion.creada)
     fecha_fmt = (
-        f"{datetime.fromtimestamp(sesion.creada).day} de "
-        f"{MESES[datetime.fromtimestamp(sesion.creada).month - 1]} de "
-        f"{datetime.fromtimestamp(sesion.creada).year} · "
-        f"{datetime.fromtimestamp(sesion.creada):%H:%M}"
+        f"{dt_creada.day} de "
+        f"{MESES[dt_creada.month - 1]} de "
+        f"{dt_creada.year} · "
+        f"{dt_creada:%H:%M}"
     )
 
     # Promedio por criterio (lo que ve el radar)
@@ -203,7 +202,7 @@ def generar_acta(sesion) -> Path:
   </section>
 
   <section>
-    <h3>Detallaje pregunta por pregunta</h3>
+    <h3>Detalle pregunta por pregunta</h3>
     <table>
       <tr><th>#</th><th>Eje temático</th><th>Nota</th><th>Fortalezas y oportunidades registradas</th></tr>
       {filas_turnos}
@@ -245,11 +244,11 @@ def _clase_chip(nota: float) -> str:
 def _fila_criterio(crit: dict, media: float) -> str:
     etiqueta = html.escape(crit["etiqueta"])
     return (
-        f"<tr><td><b>{etiqueta}</b><br><span style='color:#9aa8c7;font-size:11px;'>"
+        f"<tr><td><b>{etiqueta}</b><br><span style='color:#51665c;font-size:11px;'>"
         f"{html.escape(crit['descriptor'][:96])}…</span></td>"
         f"<td>{crit['peso']:.0%}</td>"
         f"<td><span class='chip {_clase_chip(media)}'>{media:.1f}</span></td>"
-        f"<td style='color:#9aa8c7'>{_nivel_de(media)}</td></tr>"
+        f"<td style='color:#51665c'>{_nivel_de(media)}</td></tr>"
     )
 
 
@@ -265,9 +264,9 @@ def _fila_turno(indice: int, turno) -> str:
     frz = turno.fortalezas or ["(sin fortalezas destacadas)"]
     oport = turno.oportunidades or ["(sin observaciones)"]
     contenido = "".join(
-        f"<li style='color:#6ee7a0'>✓ {html.escape(x)}</li>" for x in frz[:2]
+        f"<li style='color:#065f46'>✓ {html.escape(x)}</li>" for x in frz[:2]
     ) + "".join(
-        f"<li style='color:#ffd57e'>▲ {html.escape(x)}</li>" for x in oport[:2]
+        f"<li style='color:#b45309'>▲ {html.escape(x)}</li>" for x in oport[:2]
     )
     tipo = "" if turno.tipo == "principal" else " <span class='eje-chip'>(refuerzo)</span>"
     return (
@@ -296,24 +295,24 @@ def _svg_radar(por_criterio: dict[str, float]) -> str:
 
     html_str = ["<svg width='260' height='256' viewBox='0 0 260 256'>"]
     # Anillos de referencia (0, 2.5, 5)
-    for razon, _color in ((0.25, "#26314f"), (0.5, "#26314f"), (0.75, "#26314f"), (1.0, "#3a4a72")):
+    for razon, color in ((0.25, "#b9d5c8"), (0.5, "#b9d5c8"), (0.75, "#b9d5c8"), (1.0, "#8ab8a3")):
         pts = " ".join(f"{x},{y}" for x, y in (punto(i, razon) for i in range(n)))
-        opacidad = "1" if razon == 1.0 else "0.55"
+        opacidad = "1" if razon == 1.0 else "0.7"
         html_str.append(
-            f"<polygon points='{pts}' fill='none' stroke='#26314f' stroke-opacity='{opacidad}'/>"
+            f"<polygon points='{pts}' fill='none' stroke='{color}' stroke-opacity='{opacidad}'/>"
         )
     # Ejes y etiquetas
     for i, cod in enumerate(codigos):
         x, y = punto(i, 1.0)
-        html_str.append(f"<line x1='{cx}' y1='{cy}' x2='{x}' y2='{y}' stroke='#26314f'/>")
+        html_str.append(f"<line x1='{cx}' y1='{cy}' x2='{x}' y2='{y}' stroke='#b9d5c8'/>")
         lx, ly = punto(i, 1.18)
         etiqueta = html.escape(
             {"pertinencia": "Pertinencia", "coherencia": "Coherencia",
-             "fundamentacion": "Fundamentación", "metodologia": "Método"}[cod]
+             "fundamentacion": "Fundamentación", "metodologia": "Método"}.get(cod, cod)
         )
         ancla = "middle" if abs(lx - cx) < 10 else ("start" if lx > cx else "end")
         html_str.append(
-            f"<text x='{lx}' y='{ly}' fill='#9aa8c7' font-size='10' text-anchor='{ancla}'"
+            f"<text x='{lx}' y='{ly}' fill='#12251c' font-size='10' font-weight='600' text-anchor='{ancla}'"
             f" dominant-baseline='middle'>{etiqueta}</text>"
         )
     # Polígono de datos
@@ -321,14 +320,14 @@ def _svg_radar(por_criterio: dict[str, float]) -> str:
         punto(i, min(1.0, por_criterio.get(c, 0.0) / 5.0)) for i, c in enumerate(codigos)
     ))
     html_str.append(
-        f"<polygon points='{pts}' fill='#10b981' fill-opacity='0.3' stroke='#047857' stroke-width='2'/>"
+        f"<polygon points='{pts}' fill='#10b981' fill-opacity='0.28' stroke='#047857' stroke-width='2'/>"
     )
     for i, cod in enumerate(codigos):
         x, y = punto(i, min(1.0, por_criterio.get(cod, 0.0) / 5.0))
         html_str.append(f"<circle cx='{x}' cy='{y}' r='3.5' fill='#b45309'/>")
 
     html_str.append(
-        f"<text x='{cx}' y='{252}' fill='#6c7ba3' font-size='9' text-anchor='middle'>"
+        f"<text x='{cx}' y='{252}' fill='#51665c' font-size='9' text-anchor='middle'>"
         "Media por criterio · escala 0–5</text></svg>"
     )
     return "".join(html_str)
@@ -337,7 +336,7 @@ def _svg_radar(por_criterio: dict[str, float]) -> str:
 def _svg_historial(turnos: list) -> str:
     """Gráfica de barras: nota por turno (principal vs refuerzo)."""
     if not turnos:
-        return "<p style='color:#6c7ba3'>Sin turnos registrados.</p>"
+        return "<p style='color:#51665c'>Sin turnos registrados.</p>"
 
     ancho_barra, hueco, altura = 26, 10, 110
     total = len(turnos)
@@ -350,23 +349,24 @@ def _svg_historial(turnos: list) -> str:
         y = altura + 8 - h
         es_seguimiento = t.tipo != "principal"
         color = "#0d9488" if es_seguimiento else "#047857"
+        etiqueta_eje = html.escape(str(t.eje_etiqueta))
         barras.append(
             f"<rect x='{x}' y='{y:.1f}' width='{ancho_barra}' height='{h:.1f}' rx='4' fill='{color}'>"
-            f"<title>Pregunta {i + 1} · {t.eje_etiqueta}: {t.nota_global or 0:.1f}/5.0</title></rect>"
-            f"<text x='{x + ancho_barra / 2}' y='{altura + 24}' fill='#6c7ba3' font-size='9' "
+            f"<title>Pregunta {i + 1} · {etiqueta_eje}: {t.nota_global or 0:.1f}/5.0</title></rect>"
+            f"<text x='{x + ancho_barra / 2}' y='{altura + 24}' fill='#51665c' font-size='9' "
             f"text-anchor='middle'>{i + 1}</text>"
-            f"<text x='{x + ancho_barra / 2}' y='{y - 5:.1f}' fill='#e9b44c' font-size='9' "
+            f"<text x='{x + ancho_barra / 2}' y='{y - 5:.1f}' fill='#b45309' font-size='9' "
             f"font-weight='700' text-anchor='middle'>{t.nota_global or 0:.1f}</text>"
         )
     leyenda = (
         "<g transform='translate(16,4)'>"
-        "<rect width='10' height='10' rx='2' fill='#1c72e4'/>"
-        "<text x='14' y='9' fill='#9aa8c7' font-size='9'>Pregunta principal</text>"
-        "<rect x='130' width='10' height='10' rx='2' fill='#7c3aed'/>"
-        "<text x='144' y='9' fill='#9aa8c7' font-size='9'>Refuerzo adaptativo</text></g>"
+        "<rect width='10' height='10' rx='2' fill='#047857'/>"
+        "<text x='14' y='9' fill='#51665c' font-size='9'>Pregunta principal</text>"
+        "<rect x='130' width='10' height='10' rx='2' fill='#0d9488'/>"
+        "<text x='144' y='9' fill='#51665c' font-size='9'>Refuerzo adaptativo</text></g>"
     )
     return (
         f"<svg width='{ancho_svg}' height='150' style='max-width:100%'>"
         f"{leyenda}<line x1='10' y1='{altura + 8}' x2='{ancho_svg - 8}' y2='{altura + 8}' "
-        f"stroke='#26314f'/>{''.join(barras)}</svg>"
+        f"stroke='#b9d5c8'/>{''.join(barras)}</svg>"
     )

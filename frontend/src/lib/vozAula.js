@@ -26,6 +26,21 @@ function prepararVoz() {
 prepararVoz();
 
 let resolverPendiente = null;
+let timerPendiente = null;
+
+function finalizarPendiente() {
+  if (timerPendiente) {
+    clearTimeout(timerPendiente);
+    timerPendiente = null;
+  }
+  if (resolverPendiente) {
+    const r = resolverPendiente;
+    resolverPendiente = null;
+    r();
+    return true;
+  }
+  return false;
+}
 
 /* ── Síntesis (TTS) ──────────────────────────────────────────────── */
 export function hablar(texto) {
@@ -35,7 +50,7 @@ export function hablar(texto) {
     resolverPendiente = resolver;
     if (!("speechSynthesis" in window) || silencio) {
       // Fallback estimado por longitud: el ritmo de la conversación se sostiene
-      resolverTras(texto.length * 42).then(() => resolver());
+      timerPendiente = setTimeout(finalizarPendiente, texto.length * 42);
       return;
     }
     const fragmento = new SpeechSynthesisUtterance(texto);
@@ -43,28 +58,28 @@ export function hablar(texto) {
     fragmento.lang = vozEscogida ? vozEscogida.lang : "es-ES";
     fragmento.rate = 1.02;
     fragmento.pitch = 1.0;
-    fragmento.onend = () => resolver();
-    fragmento.onerror = () => resolver();
+    fragmento.onend = () => finalizarPendiente();
+    fragmento.onerror = () => finalizarPendiente();
     // Guardia anti-bloqueo: navegadores sin voces instaladas nunca
     // disparan onend; la conversación no puede quedarse congelada.
-    resolverTras(Math.min(30000, 2500 + texto.length * 45)).then(() => resolver());
+    timerPendiente = setTimeout(finalizarPendiente, Math.min(30000, 2500 + texto.length * 45));
     try {
       speechSynthesis.speak(fragmento);
     } catch {
-      resolverTras(texto.length * 42).then(() => resolver());
+      timerPendiente = setTimeout(finalizarPendiente, texto.length * 42);
     }
   });
 }
 
 /* Interacción maestra: omite el turno hablado (uso en demo o sin sonido) */
 export function saltarVoz() {
-  detenerVoz();
-  if (resolverPendiente) { const r = resolverPendiente; resolverPendiente = null; r(); return true; }
-  return false;
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  return finalizarPendiente();
 }
 
 export function detenerVoz() {
   if ("speechSynthesis" in window) speechSynthesis.cancel();
+  finalizarPendiente();
 }
 
 export function conmutarSilencio() {
@@ -115,9 +130,4 @@ export function detenerEscucha() {
     try { reconocimiento.stop(); } catch { /* ya detenido */ }
     reconocimiento = null;
   }
-}
-
-/* ── Ayudantes ───────────────────────────────────────────────────── */
-function resolverTras(ms) {
-  return new Promise((r) => setTimeout(r, ms));
 }

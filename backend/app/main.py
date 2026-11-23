@@ -14,8 +14,8 @@ import json
 import threading
 import time
 import uuid
+from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass, field
-from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -25,20 +25,39 @@ from pydantic import BaseModel, Field
 from app.config import settings
 from app.services import dialog, evaluator, llm, report
 
+# ── Estado en memoria (MVP): sesiones concurrentes con bloqueo por sesión ──
+_MUTEX = threading.Lock()
+_SESIONES: dict[str, "Sesion"] = {}
+_LOCKS_SESION: dict[str, threading.RLock] = {}
+
+FRONTEND_DIR = settings.PROJECT_ROOT / "frontend" / "dist"
+
+
+def _lock_de(sid: str) -> threading.RLock:
+    """Devuelve un cerrojo exclusivo para la sesión indicada (evita bloquear otras sesiones)."""
+    with _MUTEX:
+        lock = _LOCKS_SESION.get(sid)
+        if lock is None:
+            lock = threading.RLock()
+            _LOCKS_SESION[sid] = lock
+        return lock
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    restaurar_sesiones()
+    yield
+
+
 app = FastAPI(
     title="Tutoia API",
     version=settings.VERSION,
+    lifespan=_lifespan,
     description=(
         "Plataforma inteligente con avatar evaluador (AURA) para la automatización "
         "de sustentaciones de trabajos de grado mediante PLN · UTS · 2026"
     ),
 )
-
-# ── Estado en memoria (MVP): sesiones concurrentes con acceso protegido ──
-_MUTEX = threading.Lock()
-_SESIONES: dict[str, "Sesion"] = {}
-
-FRONTEND_DIR = settings.PROJECT_ROOT / "frontend" / "dist"
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -104,7 +123,6 @@ class RespuestaRequest(BaseModel):
 # ═══════════════════════════════════════════════════════════════════
 #  Endpoints · ciclo de vida de la sesión
 # ═══════════════════════════════════════════════════════════════════
-@app.on_event("startup")
 def restaurar_sesiones():
     """
     Recupera las sesiones persistidas tras un reinicio del backend.
@@ -134,6 +152,7 @@ def restaurar_sesiones():
             )
             with _MUTEX:
                 _SESIONES[sesion.id] = sesion
+                _LOCKS_SESION.setdefault(sesion.id, threading.RLock())
         except Exception:  # noqa: BLE001 — un archivo corrupto no bloquea el arranque
             continue
 
@@ -141,11 +160,13 @@ def restaurar_sesiones():
 @app.get("/api/health", tags=["Sistema"])
 def salud() -> dict:
     """Latido del sistema + motor de IA activo (información para el panel)."""
+    with _MUTEX:
+        total_sesiones = len(_SESIONES)
     return {
         "servicio": "Tutoia",
         "version": settings.VERSION,
         "motor": llm.motor_activo(),
-        "sesiones_activas": len(_SESIONES),
+        "sesiones_activas": total_sesiones,
     }
 
 
@@ -160,18 +181,22 @@ def crear_sesion(peticion: SesionRequest) -> dict:
         resumen=peticion.resumen.strip(),
         enfoque=peticion.enfoque.strip(),
         total_preguntas=peticion.total_preguntas,
+        motor_usado=llm.motor_activo(),
     )
     with _MUTEX:
         _SESIONES[sid] = sesion
-    return {"sesion_id": sid, "estado": sesion.estado, "motor": llm.motor_activo()}
+        _LOCKS_SESION[sid] = threading.RLock()
+    _persistir(sesion)
+    return {"sesion_id": sid, "estado": sesion.estado, "motor": sesion.motor_usado}
 
 
 @app.get("/api/sesiones/{sid}", tags=["Sustentación"])
 def obtener_sesion(sid: str) -> dict:
     """Estado completo de la sesión para el frontend (historial incluido)."""
     sesion = _obtener(sid)
-    datos = asdict(sesion)
-    datos["motor"] = llm.motor_activo()
+    with _lock_de(sid):
+        datos = asdict(sesion)
+        datos["motor"] = sesion.motor_usado or llm.motor_activo()
     return datos
 
 
@@ -182,7 +207,7 @@ def iniciar_sesion(sid: str) -> dict:
     primera pregunta del primer eje temático.
     """
     sesion = _obtener(sid)
-    with _MUTEX:
+    with _lock_de(sid):
         if sesion.estado == "en_curso" and sesion.pregunta_pendiente:
             return _cuerpo_apertura(sesion)
         if sesion.estado == "finalizada":
@@ -198,8 +223,7 @@ def iniciar_sesion(sid: str) -> dict:
         sesion.motor_usado = llm.motor_activo()
         sesion.estado = "en_curso"
         _persistir(sesion)
-
-    return _cuerpo_apertura(sesion)
+        return _cuerpo_apertura(sesion)
 
 
 @app.post("/api/sesiones/{sid}/responder", tags=["Sustentación"])
@@ -210,7 +234,7 @@ def responder(sid: str, peticion: RespuestaRequest) -> dict:
     turno siguiente (retro-pregunta o avance de eje) con AURA.
     """
     sesion = _obtener(sid)
-    with _MUTEX:
+    with _lock_de(sid):
         if sesion.estado != "en_curso" or not sesion.pregunta_pendiente:
             raise HTTPException(409, "No hay pregunta pendiente para esta sesión.")
 
@@ -258,6 +282,7 @@ def responder(sid: str, peticion: RespuestaRequest) -> dict:
             "fortalezas": turno.fortalezas,
             "oportunidades": turno.oportunidades,
             "motor": evaluacion["motor"],
+            "hubo_refuerzo": bool(siguiente and siguiente.get("tipo") == "seguimiento"),
         },
         "siguiente": siguiente,
         "cierre": siguiente is None,
@@ -269,7 +294,7 @@ def responder(sid: str, peticion: RespuestaRequest) -> dict:
 def generar_acta(sid: str) -> dict:
     """Objetivo específico 4 → consolida la nota y emite el acta imprimible."""
     sesion = _obtener(sid)
-    with _MUTEX:
+    with _lock_de(sid):
         if sesion.nota_final is None:
             if not sesion.turnos:
                 raise HTTPException(409, "No hay respuestas evaluadas todavía.")
@@ -279,17 +304,17 @@ def generar_acta(sid: str) -> dict:
             sesion.banda_final = banda
             _persistir(sesion)
 
-        if sesion.acta_archivo is None:
+        if sesion.acta_archivo is None or not (settings.REPORTES_DIR / sesion.acta_archivo).is_file():
             ruta = report.generar_acta(sesion)
             sesion.acta_archivo = ruta.name
             _persistir(sesion)
 
-    return {
-        "nota_final": sesion.nota_final,
-        "banda": sesion.banda_final,
-        "guion_cierre": dialog.guion_cierre(sesion.estudiante, sesion.nota_final, sesion.banda_final),
-        "acta_url": f"/api/reportes/{sesion.acta_archivo}",
-    }
+        return {
+            "nota_final": sesion.nota_final,
+            "banda": sesion.banda_final,
+            "guion_cierre": dialog.guion_cierre(sesion.estudiante, sesion.nota_final, sesion.banda_final),
+            "acta_url": f"/api/reportes/{sesion.acta_archivo}",
+        }
 
 
 @app.get("/api/reportes/{archivo}", tags=["Sustentación"])
@@ -367,7 +392,8 @@ def _persistir(sesion: Sesion) -> None:
 # ═══════════════════════════════════════════════════════════════════
 #  Servir el frontend (SPA ligera) — siempre al final del archivo
 # ═══════════════════════════════════════════════════════════════════
-app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+if FRONTEND_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 
 
 if __name__ == "__main__":

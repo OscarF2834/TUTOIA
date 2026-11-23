@@ -10,8 +10,6 @@ const CRITERIOS = [
   { os: "metodologia", nombre: "Metodología" },
 ];
 
-const COD_EJES = ["contexto", "problema", "teoria", "metodo", "resultados", "aporte"];
-
 function media(valores) {
   return valores.length ? valores.reduce((a, b) => a + b, 0) / valores.length : null;
 }

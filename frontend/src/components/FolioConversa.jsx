@@ -5,11 +5,6 @@
    ═════════════════════════════════════════════════════════════════ */
 import { useEffect, useRef } from "react";
 
-const escapar = (texto) =>
-  String(texto).replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
-  );
-
 function Literal({ item }) {
   if (item.clase === "pregunta") {
     return (
@@ -32,8 +27,7 @@ function Literal({ item }) {
     );
   }
 
-  const criterios = Object.values(item.evaluacion?.criterios || {});
-  const necesitaRefuerzo = criterios.some((c) => c.puntaje < 2.5);
+  const necesitaRefuerzo = Boolean(item.evaluacion?.hubo_refuerzo);
   const fortalezas = (item.evaluacion?.fortalezas || []).slice(0, 2);
   const oportunidades = (item.evaluacion?.oportunidades || []).slice(0, 2);
 

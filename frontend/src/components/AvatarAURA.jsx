@@ -14,6 +14,7 @@ export default function AvatarAURA({ estado = "idle", hablando = false }) {
   const ojoIzqRef = useRef(null);
   const ojoDerRef = useRef(null);
   const relojParpadeo = useRef(null);
+  const relojAperturaOjo = useRef(null);
   const marcoHabla = useRef(0);
 
   /* Parpadeo autónomo */
@@ -23,14 +24,17 @@ export default function AvatarAURA({ estado = "idle", hablando = false }) {
       relojParpadeo.current = setTimeout(ciclo, 2400 + Math.random() * 2200);
     };
     relojParpadeo.current = setTimeout(ciclo, 1600);
-    return () => clearTimeout(relojParpadeo.current);
+    return () => {
+      clearTimeout(relojParpadeo.current);
+      clearTimeout(relojAperturaOjo.current);
+    };
   }, []);
 
   function parpadear() {
     [ojoIzqRef.current, ojoDerRef.current].forEach((ojo) => {
       if (ojo) ojo.style.transform = "scaleY(0.08)";
     });
-    setTimeout(() => {
+    relojAperturaOjo.current = setTimeout(() => {
       [ojoIzqRef.current, ojoDerRef.current].forEach((ojo) => {
         if (ojo) ojo.style.transform = "scaleY(1)";
       });
@@ -121,11 +125,11 @@ export default function AvatarAURA({ estado = "idle", hablando = false }) {
       <path className="ceja ceja-izq"
             d="M 144 168 Q 163 158 182 167" fill="none"
             stroke="#9fdcc2" strokeWidth="5" strokeLinecap="round"
-            transform-origin="163px 168px" />
+            style={{ transformOrigin: "163px 168px" }} />
       <path className="ceja ceja-der"
             d="M 218 167 Q 237 158 256 168" fill="none"
             stroke="#9fdcc2" strokeWidth="5" strokeLinecap="round"
-            transform-origin="237px 167px" />
+            style={{ transformOrigin: "237px 167px" }} />
 
       {/* boca */}
       <ellipse ref={bocaRef} className="boca" cx="200" cy="244" rx="26" ry="5.2"

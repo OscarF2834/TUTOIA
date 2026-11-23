@@ -4,7 +4,7 @@ Tutoia · Motor de flujo de diálogo del avatar evaluador «AURA».
 AURA (Avatar Universitario para la Retroalimentación Académica) conduce la
 sustentación con una estrategia generativa de tres capas:
 
-1. **Guion temático progremsivo** — seis ejes que replican la lógica real de
+1. **Guion temático progresivo** — seis ejes que replican la lógica real de
    un jurado: contexto → problema → teoría → método → resultados → aportes.
 2. **Indagación adaptativa** — si el análisis de una respuesta detecta
    debilidad (heurístico o del LLM), AURA hace una retro-pregunta de
@@ -15,8 +15,7 @@ sustentación con una estrategia generativa de tres capas:
 Todo el lenguaje de AURA se produce en español neutro (colombiano),
 cordial-profesional, tal como lo haría un jurado institucional.
 """
-import random
-
+from app.config import settings
 from app.services import llm
 
 # ═══════════════════════════════════════════════════════════════════
@@ -162,12 +161,16 @@ def decidir_siguiente_turno(sesion) -> dict | None:
     · Si aún quedan ejes temáticos → siguiente pregunta principal.
     · Si los ejes se agotaron (o se alcanzó el techo) → None (cierre).
     """
+    techo_turnos = min(sesion.total_preguntas * 2, settings.MAX_INTERACCIONES)
+    if len(sesion.turnos) >= techo_turnos:
+        return None
+
     evaluacion = sesion.ultima_evaluacion or {}
     cuestionario_previo = sesion.turnos[-1] if sesion.turnos else None
     realizar_seguimiento = bool(
         evaluacion.get("requiere_seguimiento")
         and cuestionario_previo
-        and len(sesion.turnos) < sesion.total_preguntas * 2
+        and len(sesion.turnos) < techo_turnos
         and sesion.ejes_usados
         # Política institucional: máximo 1 refuerzo por eje — la sustentación
         # avanza; el concepto final integrará la debilidad en el acta.
@@ -216,7 +219,6 @@ Devuelve EXCLUSIVAMENTE un objeto JSON con las claves:
 
 def _preguntar(sesion, eje: dict, es_seguimiento: bool) -> dict:
     """Pregunta principal de un eje: LLM si está vivo, plantilla si no."""
-    resumen_extraido = (sesion.resumen or "").strip()
     usuario = _construir_contexto(sesion, eje)
 
     dict_llm = llm.chat_json(
@@ -287,11 +289,6 @@ CRIT_TO_SEGUIMIENTO: dict[str, str] = {
 }
 
 
-def pensamiento_aleatorio() -> str:
-    """Frase visible mientras AURA procesa (detalle de experiencia de uso)."""
-    return random.choice(PENSAMIENTOS)
-
-
 # ═══════════════════════════════════════════════════════════════════
 #  Ayudantes
 # ═══════════════════════════════════════════════════════════════════
@@ -309,7 +306,7 @@ def _construir_contexto(sesion, eje: dict | None) -> str:
         fragmento.append(f"ENFOQUE ACADÉMICO: {sesion.enfoque}")
 
     if sesion.turnos:
-        fragmento.append("HISTORIAL RECENTE:")
+        fragmento.append("HISTORIAL RECIENTE:")
         for turno in sesion.turnos[-3:]:
             fragmento.append(f"· EJE {turno.eje_etiqueta} — PREGUNTA: {turno.pregunta}")
             fragmento.append(f"  RESPUESTA: {turno.respuesta[:600]}")

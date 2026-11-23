@@ -23,14 +23,15 @@ import json
 import logging
 import re
 
+from app.config import settings
 from app.services import llm
 
 logger = logging.getLogger("tutoia.evaluator")
 
 # ═══════════════════════════════════════════════════════════════════
-#  Rúbrica institucional (espejo de docs/rubrica_uts.json)
+#  Rúbrica institucional (cargada desde data/rubrica_uts.json con respaldo)
 # ═══════════════════════════════════════════════════════════════════
-CRITERIOS: list[dict] = [
+_CRITERIOS_DEFAULT: list[dict] = [
     {
         "codigo": "pertinencia",
         "etiqueta": "Pertinencia de la respuesta",
@@ -69,17 +70,46 @@ CRITERIOS: list[dict] = [
     },
 ]
 
-CRIT_CODIGOS = [c["codigo"] for c in CRITERIOS]
-CRIT_PESOS = {c["codigo"]: c["peso"] for c in CRITERIOS}
-CRIT_ETIQUETAS = {c["codigo"]: c["etiqueta"] for c in CRITERIOS}
-
-BANDAS: list[tuple[float, str, str]] = [
+_BANDAS_DEFAULT: list[tuple[float, str, str]] = [
     (4.5, "Excelente", "Dominio sobresaliente: argumentación sólida, precisa y bien respaldada."),
     (3.5, "Sobresaliente", "Buen dominio general con observaciones menores de forma o respaldo."),
     (2.5, "Aceptable", "Comprensión parcial del tema: hay vacíos que ameritan precisión."),
     (1.5, "Insuficiente", "Respuesta débil: falta profundidad, respaldo o conexión con la tesis."),
     (0.0, "Crítico", "La respuesta no da luces sobre el eje preguntado; se sugiere orientación."),
 ]
+
+
+def _cargar_rubrica() -> tuple[list[dict], list[tuple[float, str, str]]]:
+    """Carga criterios y bandas desde data/rubrica_uts.json si existe."""
+    ruta = settings.RUBRICAS_DIR / "rubrica_uts.json"
+    if not ruta.is_file():
+        return _CRITERIOS_DEFAULT, _BANDAS_DEFAULT
+    try:
+        datos = json.loads(ruta.read_text(encoding="utf-8"))
+        criterios = [
+            {
+                "codigo": c["codigo"],
+                "etiqueta": c["etiqueta"],
+                "peso": float(c["peso"]),
+                "descriptor": c["descriptor"],
+            }
+            for c in datos.get("criterios", [])
+        ] or _CRITERIOS_DEFAULT
+        bandas = [
+            (float(b["desde"]), b["etiqueta"], b["descripcion"])
+            for b in datos.get("bandas_cualitativas", [])
+        ] or _BANDAS_DEFAULT
+        bandas.sort(key=lambda x: x[0], reverse=True)
+        return criterios, bandas
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("No se pudo cargar rubrica_uts.json (%s); usando valores por defecto.", exc)
+        return _CRITERIOS_DEFAULT, _BANDAS_DEFAULT
+
+
+CRITERIOS, BANDAS = _cargar_rubrica()
+CRIT_CODIGOS = [c["codigo"] for c in CRITERIOS]
+CRIT_PESOS = {c["codigo"]: c["peso"] for c in CRITERIOS}
+CRIT_ETIQUETAS = {c["codigo"]: c["etiqueta"] for c in CRITERIOS}
 
 # ═══════════════════════════════════════════════════════════════════
 #  Señales léxicas del motor heurístico (explicables y medibles)
@@ -164,6 +194,15 @@ def _escala(valor: float, maximo: float) -> float:
     return round(max(0.0, min(5.0, (valor / maximo) * 5.0)), 1)
 
 
+def _contar_marcadores(texto: str, marcadores: tuple[str, ...]) -> int:
+    """Cuenta cuántos marcadores aparecen como palabras/frases completas (sin falsos positivos por subcadena)."""
+    return sum(
+        1
+        for m in marcadores
+        if re.search(rf"(?<!\w){re.escape(m)}(?!\w)", texto)
+    )
+
+
 def puntuar_heuristico(respuesta: str, tema: str, resumen: str) -> tuple[dict, dict, list, list]:
     """
     Motor heurístico: puntúa los 4 criterios a partir de señales medibles.
@@ -182,16 +221,15 @@ def puntuar_heuristico(respuesta: str, tema: str, resumen: str) -> tuple[dict, d
         )
 
     # — Señales brutas ──────────────────────────────────────────────
-    n_conectores = sum(1 for c in CONECTORES if c in limpio)
-    n_teoricas = sum(1 for p in PALABRAS_TEORICAS if p in limpio)
-    n_metodologicas = sum(1 for p in PALABRAS_METODOLOGICAS if p in limpio)
-    n_vaguedad = sum(1 for v in MARCADORES_VAGUEDAD if v in limpio)
+    n_conectores = _contar_marcadores(limpio, CONECTORES)
+    n_teoricas = _contar_marcadores(limpio, PALABRAS_TEORICAS)
+    n_metodologicas = _contar_marcadores(limpio, PALABRAS_METODOLOGICAS)
+    n_vaguedad = _contar_marcadores(limpio, MARCADORES_VAGUEDAD)
     n_cifras = len(re.findall(r"\b\d[\d.,%]*\b", limpio))
     cobertura = _cobertura_lexica(limpio, f"{tema} {resumen}")
     profundidad = min(1.0, n_palabras / 90.0)
 
     justificaciones: dict[str, str] = {}
-    señales: list[str] = []
 
     # — Criterio 1: pertinencia (cobertura léxica + profundidad + datos) ─
     puntaje = _escala(
@@ -204,7 +242,6 @@ def puntuar_heuristico(respuesta: str, tema: str, resumen: str) -> tuple[dict, d
         f"La respuesta retoma {cobertura:.0%} del vocabulario central del tema y "
         f"alcanza {n_palabras} palabras de desarrollo."
     )
-    señales.append(f"cobertura_léxica={cobertura:.2f}; palabras={n_palabras}")
 
     # — Criterio 2: coherencia (conectores + censura de vaguedad) ───
     puntaje_coherencia = _escala(
@@ -285,7 +322,7 @@ Reglas de calificación:
 4. requiere_seguimiento=true SOLO si la respuesta fue débil (algún rubro < 2.5) y amerita
    que el avatar pida aclarar/reforzar ANTES de avanzar de eje temático.
 
-Devueves EXCLUSIVAMENTE este JSON:
+Devuelves EXCLUSIVAMENTE este JSON:
 {
   "criterios": {
     "pertinencia":    {"puntaje": 0.0, "justificacion": "…"},
@@ -343,7 +380,7 @@ def evaluar_respuesta(turno, respuesta: str, tema: str, resumen: str) -> dict:
                     "peso": CRIT_PESOS[cod],
                     "puntaje": puntaje,
                     "justificacion": str(detalle.get("justificacion", "")).strip()
-                    or "Sin observación registrada por el juício semántico.",
+                    or "Sin observación registrada por el juicio semántico.",
                 }
                 if puntaje < 1.5:
                     criterios[cod]["justificacion"] += (

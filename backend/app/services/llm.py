@@ -18,6 +18,23 @@ from app.config import settings
 
 logger = logging.getLogger("tutoia.llm")
 
+_CLIENTE: OpenAI | None = None
+_CLIENTE_CFG: tuple[str, str] | None = None
+
+
+def _obtener_cliente() -> OpenAI:
+    """Reutiliza la instancia del cliente HTTP hacia el proveedor LLM."""
+    global _CLIENTE, _CLIENTE_CFG
+    cfg = (settings.LLM_API_KEY, settings.LLM_BASE_URL)
+    if _CLIENTE is None or _CLIENTE_CFG != cfg:
+        _CLIENTE = OpenAI(
+            api_key=settings.LLM_API_KEY,
+            base_url=settings.LLM_BASE_URL,
+            timeout=30.0,
+        )
+        _CLIENTE_CFG = cfg
+    return _CLIENTE
+
 
 def motor_activo() -> str:
     """Nombre descriptivo del motor que se usará en el siguiente turno."""
@@ -43,11 +60,7 @@ def chat_json(system: str, user: str, temperatura: float | None = None) -> dict 
         return None
 
     try:
-        cliente = OpenAI(
-            api_key=settings.LLM_API_KEY,
-            base_url=settings.LLM_BASE_URL,
-            timeout=30.0,
-        )
+        cliente = _obtener_cliente()
         respuesta = cliente.chat.completions.create(
             model=settings.LLM_MODEL,
             temperature=temperatura if temperatura is not None else settings.LLM_TEMPERATURE,

@@ -2,7 +2,7 @@
    TUTOIA · <Landing />
    Presentación + sala de configuración de la sustentación.
    ═════════════════════════════════════════════════════════════════ */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { avisar } from "./ZonaAvisos";
 import AvatarAURA from "./AvatarAURA";
@@ -42,6 +42,19 @@ export default function Landing() {
   });
   const [totalPreguntas, setTotalPreguntas] = useState(6);
   const [enviando, setEnviando] = useState(false);
+  const [motorActivo, setMotorActivo] = useState("Motor IA conectado");
+
+  useEffect(() => {
+    let activo = true;
+    api.salud()
+      .then((info) => {
+        if (activo && info?.motor) setMotorActivo(`Motor: ${info.motor}`);
+      })
+      .catch(() => {
+        if (activo) setMotorActivo("Servidor desconectado");
+      });
+    return () => { activo = false; };
+  }, []);
 
   const cambiar = (campo) => (evento) =>
     setContenido({ ...contenido, [campo]: evento.target.value });
@@ -63,7 +76,7 @@ export default function Landing() {
       <header className="barra-superior">
         <div className="logo">T</div>
         <div className="logo-texto">TUTO<span>IA</span></div>
-        <span className="chip"><span className="punto"></span> Motor IA conectado</span>
+        <span className="chip"><span className="punto"></span> {motorActivo}</span>
       </header>
 
       <section className="portada">
