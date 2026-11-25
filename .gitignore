@@ -14,6 +14,9 @@ backend/.env
 
 # ── Runtime de Tutoia (sesiones y actas del MVP) ──
 backend/app/storage/
+backend/storage/
+backend/*.db
+.pytest_cache/
 
 # ── Sistema ───────────────────────────────────
 .DS_Store

@@ -1,0 +1,1 @@
+"""Fábricas de dominio."""

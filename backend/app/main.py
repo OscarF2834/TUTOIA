@@ -389,6 +389,11 @@ def _persistir(sesion: Sesion) -> None:
         pass  # el MVP no bloquea la sustentación por fallo de disco
 
 
+# ── Módulo 1 · Clean Architecture: ingesta y análisis FDC bajo /api/v1 ──
+from app.presentation.app_factory import register_fdc_module  # noqa: E402
+register_fdc_module(app)
+
+
 # ═══════════════════════════════════════════════════════════════════
 #  Servir el frontend (SPA ligera) — siempre al final del archivo
 # ═══════════════════════════════════════════════════════════════════

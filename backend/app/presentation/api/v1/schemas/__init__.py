@@ -1,0 +1,1 @@
+"""Esquemas HTTP v1."""

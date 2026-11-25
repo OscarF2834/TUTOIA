@@ -1,0 +1,1 @@
+"""DTOs de aplicación."""
