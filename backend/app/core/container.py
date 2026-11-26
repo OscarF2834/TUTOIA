@@ -18,6 +18,7 @@ from app.domain.ports.ai_fdc_analyzer_port import AiFdcAnalyzerPort
 from app.domain.strategies.fdc_analysis_strategy import FdcAnalysisStrategy
 from app.infrastructure.adapters.document_reader_adapter import DocumentReaderAdapter
 from app.infrastructure.adapters.gemini_genai_adapter import GeminiGenAiAdapter
+from app.infrastructure.adapters.resilient_ai_analyzer import ResilientAiAnalyzer
 from app.infrastructure.db import models  # noqa: F401
 from app.infrastructure.db.base import Base
 from app.infrastructure.db.repositories.sqlalchemy_fdc_repositories import (
@@ -48,11 +49,20 @@ class Container:
         )
         self.storage = LocalFileStorage(settings.FDC_STORAGE_DIR)
         self.reader = DocumentReaderAdapter()
-        self.analyzer: AiFdcAnalyzerPort = analyzer or GeminiGenAiAdapter(
-            api_key=settings.GEMINI_API_KEY,
-            model=settings.GEMINI_ANALYSIS_MODEL,
-            timeout_seconds=settings.GEMINI_TIMEOUT_SECONDS,
-        )
+        if analyzer is not None:
+            self.analyzer: AiFdcAnalyzerPort = analyzer
+        else:
+            raw_gemini = GeminiGenAiAdapter(
+                api_key=settings.GEMINI_API_KEY,
+                model=settings.GEMINI_ANALYSIS_MODEL,
+                timeout_seconds=settings.GEMINI_TIMEOUT_SECONDS,
+            )
+            self.analyzer = ResilientAiAnalyzer(
+                inner=raw_gemini,
+                fallback_models=settings.gemini_fallback_models,
+                max_retries=settings.GEMINI_MAX_RETRIES,
+                base_delay_seconds=settings.GEMINI_RETRY_BASE_DELAY_SECONDS,
+            )
         self.event_bus = InMemoryEventBus()
         audit_observer = AuditLogObserver()
         self.event_bus.subscribe(FdcDocumentAnalyzedEvent, audit_observer.on_analyzed)

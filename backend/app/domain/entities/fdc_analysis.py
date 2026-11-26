@@ -50,6 +50,7 @@ class ExecutionMetrics:
     latency_ms: int
     input_tokens: int | None = None
     output_tokens: int | None = None
+    model_used: str | None = None
 
 
 @dataclass(frozen=True)

@@ -2,7 +2,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 APP_DIR = Path(__file__).resolve().parent.parent
@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GEMINI_ANALYSIS_MODEL: str = "gemini-3.8-flash"
     GEMINI_DIALOG_MODEL: str = "gemini-3.8-flash"
+    GEMINI_FALLBACK_MODELS: str = "gemini-3.5-flash-lite,gemini-2.5-flash"
+    GEMINI_MAX_RETRIES: int = Field(default=2, ge=0)
+    GEMINI_RETRY_BASE_DELAY_SECONDS: float = Field(default=1.5, ge=0.0)
     GEMINI_TIMEOUT_SECONDS: int = 120
 
     FDC_MAX_UPLOAD_MB: int = 20
@@ -42,6 +45,19 @@ class Settings(BaseSettings):
             abs_path = (BACKEND_DIR / rel_path).resolve()
             return f"sqlite:///{abs_path.as_posix()}"
         return value
+
+    @property
+    def gemini_fallback_models(self) -> list[str]:
+        """Retorna lista ordenada y deduplicada de modelos de respaldo sin el principal."""
+        primary = self.GEMINI_ANALYSIS_MODEL.strip()
+        seen: set[str] = {primary} if primary else set()
+        models: list[str] = []
+        for raw in self.GEMINI_FALLBACK_MODELS.split(","):
+            candidate = raw.strip()
+            if candidate and candidate not in seen:
+                seen.add(candidate)
+                models.append(candidate)
+        return models
 
     @property
     def fdc_max_upload_bytes(self) -> int:

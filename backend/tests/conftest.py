@@ -33,6 +33,8 @@ FDC_124_LINES = [
     "de sustentacion de grado, lo cual genera heterogeneidad en los criterios aplicados.",
     "Objetivo general:",
     "Disenar e implementar un modulo de analisis documental automatizado basado en PLN.",
+    "Justificacion:",
+    "La automatizacion del diagnostico documental estandariza la revision academica en las UTS.",
     "Objetivos especificos:",
     "1. Estructurar la ingesta y validacion de documentos academicos en formato FDC.",
     "2. Evaluar coherencia entre problema, objetivos y diseno metodologico propuesto.",
@@ -151,8 +153,11 @@ class FakeAiAnalyzer:
         self,
         file_ref: RemoteFileRef,
         strategy: FdcAnalysisStrategy,
+        model_override: str | None = None,
     ) -> tuple[FdcExtraction, ExecutionMetrics]:
-        self.analyze_calls.append({"uri": file_ref.uri, "strategy": strategy.name})
+        self.analyze_calls.append(
+            {"uri": file_ref.uri, "strategy": strategy.name, "model": model_override or self.model_name}
+        )
         extraction = FdcExtraction(
             title="Plataforma inteligente de apoyo a sustentaciones académicas",
             authors=[Author(full_name="Ana María Sofán Ruiz", student_code="1098765432")],

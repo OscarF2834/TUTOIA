@@ -147,7 +147,7 @@ class IngestAndAnalyzeFdcUseCase:
             id=uuid4(),
             fdc_document_id=document.id,
             strategy_name=strategy.name,
-            model_name=self._analyzer.model_name,
+            model_name=metrics.model_used or self._analyzer.model_name,
             schema_version="1.0",
             academic_synthesis=extraction.synthesis,
             overall_coherence_level=extraction.overall_coherence_level,

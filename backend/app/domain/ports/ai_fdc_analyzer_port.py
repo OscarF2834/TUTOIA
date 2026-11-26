@@ -35,5 +35,6 @@ class AiFdcAnalyzerPort(Protocol):
         self,
         file_ref: RemoteFileRef,
         strategy: FdcAnalysisStrategy,
+        model_override: str | None = None,
     ) -> tuple[FdcExtraction, ExecutionMetrics]:
         """Ejecuta el análisis estructurado aplicando la estrategia dada."""

@@ -13,7 +13,7 @@ def _normalize_text(text: str) -> str:
 
 
 class FdcStructureHandler(IngestionHandler):
-    """Verifica secciones mínimas requeridas por la estrategia del FDC."""
+    """Verifica secciones mínimas oficiales según la Strategy (FDC-124 o FDC-125)."""
 
     def _process(self, ctx: FdcIngestionContext) -> None:
         normalized = _normalize_text(ctx.extracted_text)

@@ -78,20 +78,22 @@ class GeminiGenAiAdapter:
         except Exception as exc:
             raise AiProviderUnavailableError(
                 message="No fue posible subir el documento a Gemini Files API.",
-                context={"reason": str(exc)},
+                context={"reason": str(exc), "status_code": self._extract_status_code(exc)},
             ) from exc
 
     def analyze(
         self,
         file_ref: RemoteFileRef,
         strategy: FdcAnalysisStrategy,
+        model_override: str | None = None,
     ) -> tuple[FdcExtraction, ExecutionMetrics]:
         """Solicita Structured Output validado con Pydantic mediante Interactions API."""
         client = self._client()
+        active_model = (model_override or self.model_name).strip()
         started = time.perf_counter()
         try:
             interaction = client.interactions.create(
-                model=self.model_name,
+                model=active_model,
                 system_instruction=strategy.build_system_instruction(),
                 input=[
                     {
@@ -112,14 +114,18 @@ class GeminiGenAiAdapter:
         except ValidationError as exc:
             raise AiResponseValidationError(
                 message="La respuesta estructurada de Gemini no cumplió el esquema FDC esperado.",
-                context={"errors": exc.errors()},
+                context={"errors": exc.errors(), "model": active_model},
             ) from exc
         except FdcDomainError:
             raise
         except Exception as exc:
             raise AiProviderUnavailableError(
                 message="Error al analizar el documento con Google Gemini.",
-                context={"reason": str(exc), "model": self.model_name},
+                context={
+                    "reason": str(exc),
+                    "model": active_model,
+                    "status_code": self._extract_status_code(exc),
+                },
             ) from exc
 
         latency_ms = int((time.perf_counter() - started) * 1000)
@@ -128,8 +134,17 @@ class GeminiGenAiAdapter:
             latency_ms=latency_ms,
             input_tokens=getattr(usage, "total_input_tokens", None),
             output_tokens=getattr(usage, "total_output_tokens", None),
+            model_used=active_model,
         )
         return self._to_domain(parsed), metrics
+
+    @staticmethod
+    def _extract_status_code(exc: Exception) -> int | None:
+        raw = getattr(exc, "status_code", None)
+        if isinstance(raw, int):
+            return raw
+        code = getattr(exc, "code", None)
+        return code if isinstance(code, int) else None
 
     @staticmethod
     def _to_domain(parsed: FdcGeminiExtractionSchema) -> FdcExtraction:

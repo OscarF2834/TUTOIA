@@ -18,6 +18,7 @@ class Fdc124ProposalStrategy(FdcAnalysisStrategy):
     def required_sections(self) -> dict[str, tuple[str, ...]]:
         return {
             "problema": (
+                "descripcion del problema",
                 "planteamiento del problema",
                 "formulacion del problema",
                 "problema",
@@ -27,7 +28,17 @@ class Fdc124ProposalStrategy(FdcAnalysisStrategy):
                 "objetivos especificos",
                 "objetivos",
             ),
-            "metodologia": (
+            "justificacion_o_fundamento": (
+                "justificacion",
+                "estado del arte",
+                "fundamento teorico",
+                "marco teorico",
+                "marco referencial",
+            ),
+            "plan_o_metodologia": (
+                "plan de actividades",
+                "cronograma",
+                "resultados esperados",
                 "metodologia",
                 "diseno metodologico",
                 "marco metodologico",
@@ -37,17 +48,28 @@ class Fdc124ProposalStrategy(FdcAnalysisStrategy):
     def build_system_instruction(self) -> str:
         return (
             "Eres un evaluador académico experto de las Unidades Tecnológicas de Santander (UTS). "
-            "Analizas propuestas de trabajo de grado en formato F-DC-124. "
-            "Usa únicamente evidencia explícita del documento adjunto; no inventes datos, citas ni métricas. "
-            "Si un dato no aparece en el documento, indícalo con claridad o usa null según el esquema. "
+            "Analizas propuestas de trabajo de grado en formato oficial F-DC-124. "
+            "Usa únicamente evidencia explícita del contenido diligenciado por los autores; no inventes "
+            "datos, citas ni métricas. Si un dato no aparece, indícalo con claridad o usa null según el esquema. "
+            "Ignora estrictamente secciones administrativas o residuales de plantilla: Información sobre el pago "
+            "de la modalidad (LQ, Nequi, Bancolombia, comprobantes), REJILLA DE EVALUACIÓN, espacio del comité "
+            "de trabajo de grado, firmas, cláusula de tratamiento de datos personales, ANEXO A (Turnitin), "
+            "ANEXO B y ANEXO C (Instructivo General junto con sus tablas/textos de ejemplo). "
             f"{self.modality_guidance()}"
         )
 
     def build_analysis_prompt(self) -> str:
         return (
-            "Analiza integralmente esta propuesta F-DC-124. Extrae título, autores, director, programa, "
-            "modalidad, planteamiento del problema, objetivo general, objetivos específicos y diseño metodológico "
-            "propuesto (sin exigir resultados ejecutados, pues corresponde a una propuesta). "
-            "Evalúa la coherencia interna entre problema, objetivos y metodología, e identifica entre 3 y 6 "
-            "vacíos o riesgos de factibilidad útiles para futuras preguntas de sustentación."
+            "Analiza integralmente esta propuesta oficial F-DC-124 de las UTS. "
+            "Desde la 'Ficha técnica de la propuesta', extrae título, modalidad marcada con X/x "
+            "(Proyecto de Investigación, Desarrollo Tecnológico, Monografía o Emprendimiento), programa "
+            "académico, director y únicamente los autores diligenciados con su cédula en student_code "
+            "(ignorando filas vacías como Estudiante 3 o Codirector sin diligenciar). "
+            "Ten presente que el F-DC-124 no exige una sección titulada literalmente 'Metodología': "
+            "extrae las fases, entregables, herramientas y enfoque técnico desde el Plan de actividades "
+            "(cronograma por fases), Resultados esperados, Objetivos, Estado del arte y Fundamento Teórico "
+            "(sin exigir resultados ejecutados, pues es una propuesta). "
+            "Ignora pagos/consignaciones, rejilla de evaluación, firmas, tratamiento de datos y Anexos A/B/C. "
+            "Evalúa la coherencia interna entre problema, objetivos, fundamento y plan de actividades, "
+            "e identifica entre 3 y 6 vacíos o riesgos de factibilidad para futuras preguntas de sustentación."
         )
