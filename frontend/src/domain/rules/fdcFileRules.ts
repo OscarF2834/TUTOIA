@@ -26,22 +26,6 @@ export const SECTION_LABELS: Record<string, string> = {
   conclusiones: "Conclusiones",
 };
 
-export const ALIGNMENT_AXIS_LABELS: Record<string, string> = {
-  PROBLEMA_OBJETIVOS: "Problema vs. Objetivos",
-  OBJETIVOS_METODOLOGIA: "Objetivos vs. Metodología",
-  METODOLOGIA_RESULTADOS: "Metodología vs. Resultados",
-  MARCO_TEORICO_REFERENTES: "Marco teórico y Referentes",
-};
-
-export const GAP_AXIS_LABELS: Record<string, string> = {
-  CONTEXTO: "Contextualización",
-  PROBLEMA: "Problema",
-  FUNDAMENTACION: "Fundamentación teórica",
-  METODOLOGIA: "Metodología",
-  RESULTADOS: "Resultados",
-  CONCLUSIONES: "Conclusiones",
-};
-
 const SEVERITY_ORDER: Record<DefenseGap["severity"], number> = {
   ALTA: 0,
   MEDIA: 1,

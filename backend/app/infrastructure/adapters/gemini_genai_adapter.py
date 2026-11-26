@@ -33,6 +33,14 @@ class GeminiGenAiAdapter:
         self.model_name = model.strip()
         self._timeout_seconds = timeout_seconds
 
+    def _http_options(self):
+        from google.genai import types
+
+        return types.HttpOptions(
+            timeout=self._timeout_seconds * 1000,
+            retry_options=types.HttpRetryOptions(attempts=1),
+        )
+
     def _client(self):
         if not self._api_key:
             raise AiProviderNotConfiguredError(
@@ -41,7 +49,7 @@ class GeminiGenAiAdapter:
             )
         from google import genai
 
-        return genai.Client(api_key=self._api_key)
+        return genai.Client(api_key=self._api_key, http_options=self._http_options())
 
     def upload_document(
         self,
@@ -78,7 +86,11 @@ class GeminiGenAiAdapter:
         except Exception as exc:
             raise AiProviderUnavailableError(
                 message="No fue posible subir el documento a Gemini Files API.",
-                context={"reason": str(exc), "status_code": self._extract_status_code(exc)},
+                context={
+                    "reason": str(exc),
+                    "status_code": self._extract_status_code(exc),
+                    "error_type": type(exc).__name__,
+                },
             ) from exc
 
     def analyze(
@@ -125,6 +137,7 @@ class GeminiGenAiAdapter:
                     "reason": str(exc),
                     "model": active_model,
                     "status_code": self._extract_status_code(exc),
+                    "error_type": type(exc).__name__,
                 },
             ) from exc
 

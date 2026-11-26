@@ -1,9 +1,6 @@
 import type { FindingStatus, GapSeverity, FdcDocumentResult } from "@/domain/models/fdc";
-import {
-  ALIGNMENT_AXIS_LABELS,
-  GAP_AXIS_LABELS,
-  sortGapsBySeverity,
-} from "@/domain/rules/fdcFileRules";
+import { sortGapsBySeverity } from "@/domain/rules/fdcFileRules";
+import { getAlignmentAxisLabel, getGapAxisLabel } from "@/domain/rules/fdcLabelProfiles";
 import { Badge, Button, Modal, type BadgeVariant } from "@/presentation/components/ui";
 import { cn } from "@/presentation/components/ui/cn";
 
@@ -61,7 +58,7 @@ export function FdcGapsDetailModal({ isOpen, onClose, result }: FdcGapsDetailMod
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h4 className="text-sm font-semibold text-slate-900">
-                    {ALIGNMENT_AXIS_LABELS[finding.alignmentAxis] ?? finding.alignmentAxis}
+                    {getAlignmentAxisLabel(finding.alignmentAxis, result.fdcType)}
                   </h4>
                   <Badge variant={FINDING_BADGE[finding.status]} size="sm">
                     {finding.status}
@@ -98,7 +95,7 @@ export function FdcGapsDetailModal({ isOpen, onClose, result }: FdcGapsDetailMod
                         Severidad {gap.severity}
                       </Badge>
                       <span className="text-xs font-semibold text-slate-700">
-                        Eje: {GAP_AXIS_LABELS[gap.thematicAxis] ?? gap.thematicAxis}
+                        Eje: {getGapAxisLabel(gap.thematicAxis, result.fdcType)}
                       </span>
                     </div>
                   </div>

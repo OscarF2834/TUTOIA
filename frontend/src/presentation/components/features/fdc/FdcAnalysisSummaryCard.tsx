@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { CoherenceLevel, FdcDocumentResult, FdcModality } from "@/domain/models/fdc";
 import { FDC_TYPE_LABELS, formatFileSize, MODALITY_LABELS } from "@/domain/rules/fdcFileRules";
+import { getResultsEmptyMessage, getResultsSectionTitle } from "@/domain/rules/fdcLabelProfiles";
 import { Badge, Button, Card, type BadgeVariant } from "@/presentation/components/ui";
 
 export interface FdcAnalysisSummaryCardProps {
@@ -183,11 +184,10 @@ export function FdcAnalysisSummaryCard({
             <div className="space-y-2.5">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                 <CheckCircle2 className="h-4 w-4 text-emerald-700" aria-hidden="true" />
-                Resultados y conclusiones extraídas
+                {getResultsSectionTitle(result.fdcType)}
               </h3>
               <p className="text-xs leading-relaxed text-slate-700">
-                {syn.resultsAndConclusionsSummary ||
-                  "Documento de propuesta (F-DC-124) o sin resultados ejecutados reportados."}
+                {syn.resultsAndConclusionsSummary || getResultsEmptyMessage(result.fdcType)}
               </p>
               {syn.validationScope && (
                 <p className="text-xs text-slate-600">

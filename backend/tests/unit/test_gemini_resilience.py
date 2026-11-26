@@ -1,5 +1,6 @@
-"""Pruebas unitarias de resiliencia Gemini (Decorator + Backoff + Fallback)."""
+"""Pruebas unitarias de resiliencia Gemini (Decorator + Fail-Fast + Fallback)."""
 from datetime import datetime, timedelta, timezone
+import logging
 
 import pytest
 
@@ -15,6 +16,7 @@ from app.domain.exceptions.fdc_exceptions import (
 from app.domain.factories.fdc_strategy_factory import FdcStrategyFactory
 from app.domain.ports.ai_fdc_analyzer_port import RemoteFileRef
 from app.domain.strategies.fdc_analysis_strategy import FdcAnalysisStrategy
+from app.infrastructure.adapters.gemini_genai_adapter import GeminiGenAiAdapter
 from app.infrastructure.adapters.resilient_ai_analyzer import ResilientAiAnalyzer
 from tests.conftest import FDC_125_LINES, FakeAiAnalyzer, build_pdf
 
@@ -64,16 +66,38 @@ def test_settings_parses_fallback_models_without_duplicating_primary() -> None:
     assert settings.gemini_fallback_models == ["gemini-3.5-flash-lite", "gemini-2.5-flash"]
 
 
-def test_retry_succeeds_after_transient_503() -> None:
+def test_settings_defaults_prioritize_fast_models(monkeypatch: pytest.MonkeyPatch) -> None:
+    for key in (
+        "GEMINI_ANALYSIS_MODEL",
+        "GEMINI_FALLBACK_MODELS",
+        "GEMINI_TIMEOUT_SECONDS",
+        "GEMINI_MAX_RETRIES",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    settings = Settings(_env_file=None)
+    assert settings.GEMINI_ANALYSIS_MODEL == "gemini-2.5-flash"
+    assert settings.gemini_fallback_models == ["gemini-3.5-flash-lite", "gemini-3.8-flash"]
+    assert settings.GEMINI_TIMEOUT_SECONDS == 45
+    assert settings.GEMINI_MAX_RETRIES == 1
+
+
+def test_gemini_adapter_http_options_disable_sdk_retries_and_apply_timeout() -> None:
+    opts = GeminiGenAiAdapter(api_key="x", model="m", timeout_seconds=45)._http_options()
+    assert opts.timeout == 45000
+    assert opts.retry_options is not None
+    assert opts.retry_options.attempts == 1
+
+
+def test_retry_succeeds_after_transient_429_on_same_model() -> None:
     sleeps: list[float] = []
     inner = ScriptedAiAnalyzer([
-        AiProviderUnavailableError("503 service_unavailable: high demand", context={"status_code": 503}),
+        AiProviderUnavailableError("429 resource_exhausted", context={"status_code": 429}),
         "OK",
     ])
     decorator = ResilientAiAnalyzer(
         inner=inner,
         fallback_models=["gemini-3.5-flash-lite"],
-        max_retries=2,
+        max_retries=1,
         base_delay_seconds=1.5,
         sleep_fn=sleeps.append,
         jitter_fn=lambda _a, _b: 0.1,
@@ -87,19 +111,17 @@ def test_retry_succeeds_after_transient_503() -> None:
     assert [c["model"] for c in inner.analyze_calls] == ["gemini-3.8-flash", "gemini-3.8-flash"]
 
 
-def test_fallback_to_secondary_model_after_primary_exhausts_503_and_429() -> None:
+def test_503_high_demand_fails_fast_to_fallback_without_sleep() -> None:
     sleeps: list[float] = []
     inner = ScriptedAiAnalyzer([
-        AiProviderUnavailableError("503 service_unavailable", context={"status_code": 503}),
-        AiProviderUnavailableError("429 resource_exhausted", context={"status_code": 429}),
-        AiProviderUnavailableError("503 high demand", context={"status_code": 503}),
+        AiProviderUnavailableError("503 service_unavailable: high demand", context={"status_code": 503}),
         "OK",
     ])
     decorator = ResilientAiAnalyzer(
         inner=inner,
-        fallback_models=["gemini-3.5-flash-lite", "gemini-2.5-flash"],
+        fallback_models=["gemini-3.5-flash-lite"],
         max_retries=2,
-        base_delay_seconds=1.0,
+        base_delay_seconds=1.5,
         sleep_fn=sleeps.append,
         jitter_fn=lambda _a, _b: 0.0,
     )
@@ -107,14 +129,77 @@ def test_fallback_to_secondary_model_after_primary_exhausts_503_and_429() -> Non
     _, metrics = decorator.analyze(ref, FdcStrategyFactory.create(FdcType.FDC_125))
 
     assert metrics.model_used == "gemini-3.5-flash-lite"
-    assert sleeps == [1.0, 2.0]
+    assert sleeps == []
+    assert [c["model"] for c in inner.analyze_calls] == ["gemini-3.8-flash", "gemini-3.5-flash-lite"]
+    assert all(c["uri"] == ref.uri for c in inner.analyze_calls)
+
+
+def test_timeout_fails_fast_to_fallback_without_sleep() -> None:
+    sleeps: list[float] = []
+    inner = ScriptedAiAnalyzer([
+        AiProviderUnavailableError(
+            "Error al analizar el documento con Google Gemini.",
+            context={"reason": "The read operation timed out", "error_type": "ReadTimeout", "status_code": None},
+        ),
+        "OK",
+    ])
+    decorator = ResilientAiAnalyzer(
+        inner=inner,
+        fallback_models=["gemini-3.5-flash-lite"],
+        max_retries=2,
+        base_delay_seconds=1.5,
+        sleep_fn=sleeps.append,
+        jitter_fn=lambda _a, _b: 0.0,
+    )
+    _, metrics = decorator.analyze(_file_ref(), FdcStrategyFactory.create(FdcType.FDC_125))
+
+    assert metrics.model_used == "gemini-3.5-flash-lite"
+    assert sleeps == []
+    assert [c["model"] for c in inner.analyze_calls] == ["gemini-3.8-flash", "gemini-3.5-flash-lite"]
+
+
+def test_429_exhausts_retries_then_switches_model() -> None:
+    sleeps: list[float] = []
+    err_429 = AiProviderUnavailableError("429 resource_exhausted", context={"status_code": 429})
+    inner = ScriptedAiAnalyzer([err_429, err_429, "OK"])
+    decorator = ResilientAiAnalyzer(
+        inner=inner,
+        fallback_models=["gemini-3.5-flash-lite"],
+        max_retries=1,
+        base_delay_seconds=1.0,
+        sleep_fn=sleeps.append,
+        jitter_fn=lambda _a, _b: 0.0,
+    )
+    _, metrics = decorator.analyze(_file_ref(), FdcStrategyFactory.create(FdcType.FDC_125))
+
+    assert metrics.model_used == "gemini-3.5-flash-lite"
+    assert sleeps == [1.0]
     assert [c["model"] for c in inner.analyze_calls] == [
-        "gemini-3.8-flash",
         "gemini-3.8-flash",
         "gemini-3.8-flash",
         "gemini-3.5-flash-lite",
     ]
-    assert all(c["uri"] == ref.uri for c in inner.analyze_calls)
+
+
+def test_fail_fast_logs_model_status_elapsed_and_fallback(caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level(logging.WARNING, logger="tutoia.ai.resilience")
+    inner = ScriptedAiAnalyzer([
+        AiProviderUnavailableError("503 service_unavailable", context={"status_code": 503}),
+        "OK",
+    ])
+    decorator = ResilientAiAnalyzer(
+        inner=inner,
+        fallback_models=["gemini-3.5-flash-lite"],
+        max_retries=1,
+        base_delay_seconds=1.0,
+        sleep_fn=lambda _: None,
+    )
+    decorator.analyze(_file_ref(), FdcStrategyFactory.create(FdcType.FDC_125))
+
+    assert "gemini-3.8-flash" in caplog.text
+    assert "503" in caplog.text
+    assert "transcurrido=" in caplog.text
+    assert "respaldo=gemini-3.5-flash-lite" in caplog.text
 
 
 def test_404_model_not_found_triggers_immediate_fallback_without_retries() -> None:
@@ -168,7 +253,7 @@ def test_non_retryable_errors_fail_immediately_without_retries_or_fallback(exc: 
 def test_all_models_exhausted_raises_unavailable_with_attempted_models() -> None:
     sleeps: list[float] = []
     err = AiProviderUnavailableError("503 service_unavailable", context={"status_code": 503})
-    inner = ScriptedAiAnalyzer([err, err, err, err])
+    inner = ScriptedAiAnalyzer([err, err])
     decorator = ResilientAiAnalyzer(
         inner=inner,
         fallback_models=["gemini-3.5-flash-lite"],
@@ -183,7 +268,8 @@ def test_all_models_exhausted_raises_unavailable_with_attempted_models() -> None
     assert exc_info.value.context["attempted_models"] == ["gemini-3.8-flash", "gemini-3.5-flash-lite"]
     assert "gemini-3.8-flash" in exc_info.value.message
     assert "gemini-3.5-flash-lite" in exc_info.value.message
-    assert sleeps == [1.0, 1.0]
+    assert sleeps == []
+    assert len(inner.analyze_calls) == 2
 
 
 def test_use_case_persists_actual_fallback_model_name(test_settings: Settings) -> None:

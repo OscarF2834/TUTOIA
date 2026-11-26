@@ -25,12 +25,12 @@ class Settings(BaseSettings):
     DB_AUTO_CREATE: bool = True
 
     GEMINI_API_KEY: str = ""
-    GEMINI_ANALYSIS_MODEL: str = "gemini-3.8-flash"
+    GEMINI_ANALYSIS_MODEL: str = "gemini-2.5-flash"
     GEMINI_DIALOG_MODEL: str = "gemini-3.8-flash"
-    GEMINI_FALLBACK_MODELS: str = "gemini-3.5-flash-lite,gemini-2.5-flash"
-    GEMINI_MAX_RETRIES: int = Field(default=2, ge=0)
+    GEMINI_FALLBACK_MODELS: str = "gemini-3.5-flash-lite,gemini-3.8-flash"
+    GEMINI_MAX_RETRIES: int = Field(default=1, ge=0)
     GEMINI_RETRY_BASE_DELAY_SECONDS: float = Field(default=1.5, ge=0.0)
-    GEMINI_TIMEOUT_SECONDS: int = 120
+    GEMINI_TIMEOUT_SECONDS: int = Field(default=45, ge=5)
 
     FDC_MAX_UPLOAD_MB: int = 20
     FDC_MIN_TEXT_CHARS: int = 500

@@ -1,4 +1,4 @@
-"""Decorator de resiliencia con reintento exponencial y fallback de modelos Gemini."""
+"""Decorator de resiliencia con fail-fast y fallback de modelos Gemini."""
 from collections.abc import Callable
 import logging
 import random
@@ -18,7 +18,8 @@ logger = logging.getLogger("tutoia.ai.resilience")
 
 _NON_RETRYABLE_STATUS = {400, 401, 403}
 _FALLBACK_NOW_STATUS = {404}
-_TRANSIENT_STATUS = {429, 500, 502, 503, 504}
+_SATURATED_STATUS = {503, 504}
+_TRANSIENT_STATUS = {429, 500, 502}
 _NON_RETRYABLE_MARKERS = (
     "401",
     "403",
@@ -31,35 +32,37 @@ _NON_RETRYABLE_MARKERS = (
     "bad request",
 )
 _FALLBACK_NOW_MARKERS = ("404", "not_found", "not found", "model_not_found")
-_TRANSIENT_MARKERS = (
+_SATURATED_MARKERS = (
     "503",
-    "429",
-    "500",
-    "502",
     "504",
     "service_unavailable",
     "unavailable",
     "high demand",
     "overloaded",
-    "resource_exhausted",
-    "rate limit",
-    "too many requests",
     "timeout",
     "timed out",
     "deadline_exceeded",
+)
+_TRANSIENT_MARKERS = (
+    "429",
+    "500",
+    "502",
+    "resource_exhausted",
+    "rate limit",
+    "too many requests",
     "connection",
     "network",
 )
 
 
 class ResilientAiAnalyzer:
-    """Decorator sobre AiFdcAnalyzerPort con backoff exponencial y fallback de modelos."""
+    """Decorator sobre AiFdcAnalyzerPort con fail-fast en 503/timeout y backoff."""
 
     def __init__(
         self,
         inner: AiFdcAnalyzerPort,
         fallback_models: list[str],
-        max_retries: int = 2,
+        max_retries: int = 1,
         base_delay_seconds: float = 1.5,
         sleep_fn: Callable[[float], None] = time.sleep,
         jitter_fn: Callable[[float, float], float] = random.uniform,
@@ -101,23 +104,34 @@ class ResilientAiAnalyzer:
         strategy: FdcAnalysisStrategy,
         model_override: str | None = None,
     ) -> tuple[FdcExtraction, ExecutionMetrics]:
-        """Analiza reutilizando file_ref con reintentos y cambio automático de modelo."""
+        """Analiza reutilizando file_ref con fail-fast y cambio automático de modelo."""
         candidates = self._candidate_models(model_override)
         started = time.perf_counter()
         last_exc: Exception | None = None
 
-        for model in candidates:
+        for idx, model in enumerate(candidates):
             try:
                 return self._analyze_with_retries(file_ref, strategy, model, started)
             except _FallbackNextModel as exc:
                 last_exc = exc.cause
+                next_model = candidates[idx + 1] if idx + 1 < len(candidates) else None
+                status_code = self._extract_status_code(exc.cause)
+                logger.warning(
+                    "Gemini fail-fast | modelo=%s | http=%s | causa=%s | transcurrido=%.1fs | total=%.1fs | respaldo=%s",
+                    model,
+                    status_code if status_code is not None else "n/a",
+                    exc.kind,
+                    exc.elapsed_s,
+                    time.perf_counter() - started,
+                    next_model or "ninguno",
+                )
                 continue
 
         reason = getattr(last_exc, "message", None) or str(last_exc or "Fallo desconocido")
         status_code = self._extract_status_code(last_exc) if last_exc else None
         raise AiProviderUnavailableError(
             message=(
-                "Todos los modelos Gemini fallaron tras reintentos: "
+                "Todos los modelos Gemini fallaron (fail-fast/reintentos): "
                 f"{', '.join(candidates)}. Último error: {reason}"
             ),
             context={
@@ -135,6 +149,7 @@ class ResilientAiAnalyzer:
         started: float,
     ) -> tuple[FdcExtraction, ExecutionMetrics]:
         for attempt in range(self._max_retries + 1):
+            attempt_started = time.perf_counter()
             try:
                 extraction, inner_metrics = self._inner.analyze(file_ref, strategy, model_override=model)
                 total_ms = max(inner_metrics.latency_ms, int((time.perf_counter() - started) * 1000))
@@ -146,17 +161,17 @@ class ResilientAiAnalyzer:
                 )
                 return extraction, metrics
             except Exception as exc:
+                elapsed_s = time.perf_counter() - attempt_started
                 kind = self._classify_error(exc)
                 if kind == "non_retryable":
                     raise
-                if kind == "fallback_now":
-                    logger.warning("Modelo %s no disponible (404); cambiando a respaldo.", model)
-                    raise _FallbackNextModel(exc) from exc
+                if kind in ("saturated", "fallback_now"):
+                    raise _FallbackNextModel(exc, kind=kind, elapsed_s=elapsed_s) from exc
                 logger.warning("Fallo transitorio en modelo %s (%d/%d): %s", model, attempt + 1, self._max_retries, exc)
                 if attempt >= self._max_retries:
-                    raise _FallbackNextModel(exc) from exc
+                    raise _FallbackNextModel(exc, kind="transient", elapsed_s=elapsed_s) from exc
                 self._sleep_with_backoff(attempt)
-        raise _FallbackNextModel(AiProviderUnavailableError("Reintentos agotados"))
+        raise _FallbackNextModel(AiProviderUnavailableError("Reintentos agotados"), kind="transient", elapsed_s=0.0)
 
     def _candidate_models(self, model_override: str | None) -> list[str]:
         primary = (model_override or self._inner.model_name).strip()
@@ -182,6 +197,8 @@ class ResilientAiAnalyzer:
             return "non_retryable"
         if status_code in _FALLBACK_NOW_STATUS:
             return "fallback_now"
+        if status_code in _SATURATED_STATUS:
+            return "saturated"
         if status_code in _TRANSIENT_STATUS:
             return "transient"
         detail = f"{exc} {getattr(exc, 'context', '')}".lower()
@@ -189,6 +206,8 @@ class ResilientAiAnalyzer:
             return "non_retryable"
         if any(marker in detail for marker in _FALLBACK_NOW_MARKERS):
             return "fallback_now"
+        if any(marker in detail for marker in _SATURATED_MARKERS):
+            return "saturated"
         if any(marker in detail for marker in _TRANSIENT_MARKERS):
             return "transient"
         return "transient" if isinstance(exc, AiProviderUnavailableError) else "non_retryable"
@@ -209,6 +228,8 @@ class ResilientAiAnalyzer:
 class _FallbackNextModel(Exception):
     """Señal interna para avanzar al siguiente modelo candidato."""
 
-    def __init__(self, cause: Exception) -> None:
+    def __init__(self, cause: Exception, kind: str = "transient", elapsed_s: float = 0.0) -> None:
         super().__init__(str(cause))
         self.cause = cause
+        self.kind = kind
+        self.elapsed_s = elapsed_s
