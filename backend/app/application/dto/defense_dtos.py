@@ -52,3 +52,12 @@ class TurnSubmissionResult:
     next_question_text: str | None
     is_follow_up_pending: bool
     is_completed: bool
+
+
+@dataclass(frozen=True)
+class ActaExportResult:
+    """Archivo binario del acta generada listo para descarga HTTP."""
+
+    content: bytes
+    mime_type: str
+    filename: str

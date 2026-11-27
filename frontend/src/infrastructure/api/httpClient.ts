@@ -82,3 +82,14 @@ export async function requestBlob(url: string, options: RequestInit = {}): Promi
   const response = await executeFetch(url, options);
   return await response.blob();
 }
+
+export async function requestBlobWithMeta(
+  url: string,
+  options: RequestInit = {},
+): Promise<{ blob: Blob; contentDisposition: string | null }> {
+  const response = await executeFetch(url, options);
+  return {
+    blob: await response.blob(),
+    contentDisposition: response.headers.get("Content-Disposition"),
+  };
+}

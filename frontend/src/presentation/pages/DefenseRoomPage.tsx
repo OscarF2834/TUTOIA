@@ -29,6 +29,8 @@ export default function DefenseRoomPage({ initialParams, onBackToFdc }: DefenseR
     isHydrating,
     isCreating,
     isSubmittingTurn,
+    exportingFormat,
+    exportError,
     isAuraSpeaking,
     needsPlayGesture,
     isRecording,
@@ -40,6 +42,7 @@ export default function DefenseRoomPage({ initialParams, onBackToFdc }: DefenseR
     silenceCountdownMs,
     errorMessage,
     startSession,
+    exportActa,
     repeatQuestion,
     startMic,
     stopAndSubmitMic,
@@ -245,6 +248,9 @@ export default function DefenseRoomPage({ initialParams, onBackToFdc }: DefenseR
                 <DefenseFinalSummaryCard
                   session={session}
                   isAuraSpeaking={isAuraSpeaking}
+                  exportingFormat={exportingFormat}
+                  exportError={exportError}
+                  onExportActa={(format) => void exportActa(format)}
                   onReplayClosing={repeatQuestion}
                   onStartNewDefense={resetDefenseSession}
                 />

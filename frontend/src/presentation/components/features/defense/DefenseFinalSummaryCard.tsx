@@ -1,11 +1,24 @@
-import { Award, CheckCircle2, FileDown, RotateCcw, Sparkles, TrendingUp, Volume2 } from "lucide-react";
-import type { DefenseSession } from "@/domain/models/defense";
+import {
+  AlertCircle,
+  Award,
+  CheckCircle2,
+  FileDown,
+  FileText,
+  RotateCcw,
+  Sparkles,
+  TrendingUp,
+  Volume2,
+} from "lucide-react";
+import type { ActaExportFormat, DefenseSession } from "@/domain/models/defense";
 import { CRITERION_META, JURY_PROFILE_LABELS, VERDICT_META } from "@/domain/rules/defenseRules";
 import { Badge, Button, Card, ProgressBar } from "@/presentation/components/ui";
 
 export interface DefenseFinalSummaryCardProps {
   session: DefenseSession;
   isAuraSpeaking: boolean;
+  exportingFormat: ActaExportFormat | null;
+  exportError: string | null;
+  onExportActa: (format: ActaExportFormat) => void;
   onReplayClosing: () => void;
   onStartNewDefense: () => void;
 }
@@ -13,6 +26,9 @@ export interface DefenseFinalSummaryCardProps {
 export function DefenseFinalSummaryCard({
   session,
   isAuraSpeaking,
+  exportingFormat,
+  exportError,
+  onExportActa,
   onReplayClosing,
   onStartNewDefense,
 }: DefenseFinalSummaryCardProps) {
@@ -20,6 +36,7 @@ export function DefenseFinalSummaryCard({
   if (!summary || session.overallScore === null) return null;
 
   const verdictMeta = VERDICT_META[summary.verdict];
+  const isExporting = exportingFormat !== null;
 
   return (
     <Card
@@ -36,26 +53,51 @@ export function DefenseFinalSummaryCard({
         </div>
       }
       footer={
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            disabled
-            title="La generación oficial de acta PDF institucional estará disponible en el Módulo 3."
-            leftIcon={<FileDown className="h-4 w-4" />}
-          >
-            Exportar acta PDF (Módulo 3 · Próximamente)
-          </Button>
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={onStartNewDefense}
-            leftIcon={<RotateCcw className="h-4 w-4" />}
-          >
-            Iniciar nueva sustentación
-          </Button>
+        <div className="space-y-3">
+          {exportError && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-900"
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-700" aria-hidden="true" />
+              <span>{exportError}</span>
+            </div>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                disabled={isExporting}
+                isLoading={exportingFormat === "pdf"}
+                onClick={() => onExportActa("pdf")}
+                leftIcon={<FileDown className="h-4 w-4" />}
+              >
+                Descargar acta PDF
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                disabled={isExporting}
+                isLoading={exportingFormat === "docx"}
+                onClick={() => onExportActa("docx")}
+                leftIcon={<FileText className="h-4 w-4" />}
+              >
+                Descargar acta Word (.docx)
+              </Button>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              onClick={onStartNewDefense}
+              leftIcon={<RotateCcw className="h-4 w-4" />}
+            >
+              Iniciar nueva sustentación
+            </Button>
+          </div>
         </div>
       }
     >

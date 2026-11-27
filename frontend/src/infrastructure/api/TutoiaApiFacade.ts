@@ -1,12 +1,14 @@
 import type {
+  ActaExportFormat,
   CreateDefenseSessionRequest,
   DefenseSession,
+  DownloadedActaFile,
   TurnSubmissionResult,
 } from "@/domain/models/defense";
 import type { FdcDocumentResult, FdcUploadRequest } from "@/domain/models/fdc";
 import type { IDefenseApi } from "@/domain/ports/defenseApiPort";
 import type { IFdcApiPort } from "@/domain/ports/fdcApiPort";
-import { httpRequest, requestBlob } from "@/infrastructure/api/httpClient";
+import { httpRequest, requestBlob, requestBlobWithMeta } from "@/infrastructure/api/httpClient";
 import {
   mapDefenseSessionDtoToDomain,
   mapTurnSubmissionDtoToDomain,
@@ -117,6 +119,23 @@ export class TutoiaApiFacade implements IFdcApiPort, IDefenseApi {
       },
     );
     return mapTurnSubmissionDtoToDomain(dto);
+  }
+
+  async downloadActaReport(
+    sessionId: string,
+    format: ActaExportFormat,
+    signal?: AbortSignal,
+  ): Promise<DownloadedActaFile> {
+    const { blob, contentDisposition } = await requestBlobWithMeta(
+      `/api/v1/defense/sessions/${encodeURIComponent(sessionId)}/report?format=${encodeURIComponent(format)}`,
+      { method: "GET", signal },
+    );
+    const match = contentDisposition?.match(/filename="?([^"]+)"?/i);
+    const fallbackName = `Acta_Sustentacion_UTS_${sessionId.slice(0, 8)}.${format}`;
+    return {
+      blob,
+      filename: match?.[1]?.trim() || fallbackName,
+    };
   }
 }
 

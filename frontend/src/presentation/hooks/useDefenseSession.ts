@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DefenseSession, JuryProfile } from "@/domain/models/defense";
+import type { ActaExportFormat, DefenseSession, JuryProfile } from "@/domain/models/defense";
 import type { FdcDocumentResult } from "@/domain/models/fdc";
 import { mapDefenseApiError } from "@/domain/rules/defenseRules";
 import { ApiHttpError } from "@/infrastructure/api/httpClient";
 import { mergeTurnSubmissionIntoSession } from "@/infrastructure/api/mappers/defenseMapper";
 import { tutoiaApi } from "@/infrastructure/api/TutoiaApiFacade";
+import { triggerBrowserFileDownload } from "@/infrastructure/files/browserDownloadAdapter";
 import { useDefenseAudio } from "@/presentation/hooks/useDefenseAudio";
 
 const DEFENSE_SESSION_KEY = "tutoia.defense.lastSessionId";
@@ -26,6 +27,8 @@ export function useDefenseSession(initialParams: InitialDefenseParams = {}) {
   const [isHydrating, setIsHydrating] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isSubmittingTurn, setIsSubmittingTurn] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<ActaExportFormat | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
@@ -182,10 +185,26 @@ export function useDefenseSession(initialParams: InitialDefenseParams = {}) {
     audio.stopAll();
     window.sessionStorage.removeItem(DEFENSE_SESSION_KEY);
     syncSession(null);
+    setExportError(null);
     setErrorMessage(null);
     const lastFdcId = window.sessionStorage.getItem(LAST_FDC_KEY);
     if (lastFdcId) void loadFdcMetadata(lastFdcId);
   }, [audio, loadFdcMetadata, syncSession]);
+
+  const exportActa = useCallback(async (format: ActaExportFormat) => {
+    const active = sessionRef.current;
+    if (!active) return;
+    setExportingFormat(format);
+    setExportError(null);
+    try {
+      const file = await tutoiaApi.downloadActaReport(active.sessionId, format);
+      triggerBrowserFileDownload(file.blob, file.filename);
+    } catch (err) {
+      if (mountedRef.current) setExportError(extractErrorMessage(err));
+    } finally {
+      if (mountedRef.current) setExportingFormat(null);
+    }
+  }, []);
 
   return {
     session,
@@ -193,6 +212,8 @@ export function useDefenseSession(initialParams: InitialDefenseParams = {}) {
     isHydrating,
     isCreating,
     isSubmittingTurn,
+    exportingFormat,
+    exportError,
     isAuraSpeaking: audio.isAuraSpeaking,
     needsPlayGesture: audio.needsPlayGesture,
     isRecording: audio.isRecording,
@@ -204,6 +225,7 @@ export function useDefenseSession(initialParams: InitialDefenseParams = {}) {
     silenceCountdownMs: audio.telemetry.silenceCountdownMs,
     errorMessage,
     startSession,
+    exportActa,
     repeatQuestion: () => {
       const active = sessionRef.current;
       if (!active) return;

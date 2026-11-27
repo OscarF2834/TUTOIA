@@ -1,6 +1,9 @@
-"""Pruebas de integración del flujo completo /api/v1/defense/*."""
+"""Pruebas de integración del flujo completo /api/v1/defense/* y exportación de actas."""
+import io
 from pathlib import Path
+from uuid import uuid4
 
+import docx
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -37,6 +40,10 @@ def test_complete_four_question_defense_flow_with_tts_audio_and_text(
     assert session["state"] == "AURA_SPEAKING"
     assert session["total_questions"] == 4
     assert "TutoIA" in session["custom_vocabulary"]
+
+    incomplete_report = client.get(f"/api/v1/defense/sessions/{sid}/report?format=pdf")
+    assert incomplete_report.status_code == 409
+    assert incomplete_report.json()["code"] == "DEFENSE_SESSION_NOT_COMPLETED"
 
     for q_idx in range(4):
         tts_resp = client.post(f"/api/v1/defense/sessions/{sid}/tts")
@@ -93,6 +100,25 @@ def test_complete_four_question_defense_flow_with_tts_audio_and_text(
 
     blocked_tts = client.post(f"/api/v1/defense/sessions/{sid}/tts")
     assert blocked_tts.status_code == 409
+
+    pdf_resp = client.get(f"/api/v1/defense/sessions/{sid}/report?format=pdf")
+    assert pdf_resp.status_code == 200
+    assert pdf_resp.headers["content-type"] == "application/pdf"
+    assert ".pdf" in pdf_resp.headers["content-disposition"]
+    assert pdf_resp.content.startswith(b"%PDF-")
+
+    docx_resp = client.get(f"/api/v1/defense/sessions/{sid}/report?format=docx")
+    assert docx_resp.status_code == 200
+    assert (
+        docx_resp.headers["content-type"]
+        == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    assert ".docx" in docx_resp.headers["content-disposition"]
+    exported_doc = docx.Document(io.BytesIO(docx_resp.content))
+    assert any("Pertinencia" in cell.text for t in exported_doc.tables for r in t.rows for cell in r.cells)
+
+    missing_resp = client.get(f"/api/v1/defense/sessions/{uuid4()}/report?format=pdf")
+    assert missing_resp.status_code == 404
 
 
 def test_follow_up_question_happens_at_most_once_per_base_question(tmp_path: Path) -> None:

@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 
 from app.domain.exceptions.defense_exceptions import (
     AudioTooLargeError,
+    DefenseSessionNotCompletedError,
     DefenseSessionNotFoundError,
     EmptyAudioError,
     InvalidDefenseStateTransitionError,
@@ -41,6 +42,7 @@ _EXCEPTION_STATUS_MAP: dict[type[FdcDomainError], int] = {
     AiProviderUnavailableError: 502,
     AiResponseValidationError: 502,
     InvalidDefenseStateTransitionError: 409,
+    DefenseSessionNotCompletedError: 409,
     DefenseSessionNotFoundError: 404,
     UnsupportedJuryProfileError: 422,
     EmptyAudioError: 422,

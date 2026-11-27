@@ -1,6 +1,8 @@
 import type {
+  ActaExportFormat,
   CreateDefenseSessionRequest,
   DefenseSession,
+  DownloadedActaFile,
   TurnSubmissionResult,
 } from "@/domain/models/defense";
 
@@ -19,4 +21,9 @@ export interface IDefenseApi {
     text: string,
     signal?: AbortSignal,
   ): Promise<TurnSubmissionResult>;
+  downloadActaReport(
+    sessionId: string,
+    format: ActaExportFormat,
+    signal?: AbortSignal,
+  ): Promise<DownloadedActaFile>;
 }

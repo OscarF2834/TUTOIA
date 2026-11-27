@@ -69,3 +69,10 @@ class InvalidSpeechInputError(FdcDomainError):
 
     def __init__(self, message: str, context: dict[str, Any] | None = None) -> None:
         super().__init__(message=message, code="DEFENSE_INVALID_SPEECH_INPUT", context=context)
+
+
+class DefenseSessionNotCompletedError(FdcDomainError):
+    """La sesión de sustentación aún no concluye y no puede generar acta oficial."""
+
+    def __init__(self, message: str, context: dict[str, Any] | None = None) -> None:
+        super().__init__(message=message, code="DEFENSE_SESSION_NOT_COMPLETED", context=context)

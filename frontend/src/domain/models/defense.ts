@@ -87,3 +87,10 @@ export interface CreateDefenseSessionRequest {
   fdcDocumentId: string;
   juryProfile: JuryProfile;
 }
+
+export type ActaExportFormat = "pdf" | "docx";
+
+export interface DownloadedActaFile {
+  blob: Blob;
+  filename: string;
+}

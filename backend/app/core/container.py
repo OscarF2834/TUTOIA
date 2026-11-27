@@ -12,6 +12,7 @@ from app.application.pipelines.fdc_ingestion.mime_extension_handler import MimeE
 from app.application.pipelines.fdc_ingestion.size_integrity_handler import SizeIntegrityHandler
 from app.application.pipelines.fdc_ingestion.text_readability_handler import TextReadabilityHandler
 from app.application.use_cases.create_defense_session import CreateDefenseSessionUseCase
+from app.application.use_cases.export_defense_acta import ExportDefenseActaUseCase
 from app.application.use_cases.get_defense_session import GetDefenseSessionUseCase
 from app.application.use_cases.get_fdc_analysis import GetFdcAnalysisUseCase
 from app.application.use_cases.ingest_and_analyze_fdc import IngestAndAnalyzeFdcUseCase
@@ -24,6 +25,7 @@ from app.domain.events.defense_events import (
     DefenseTurnEvaluatedEvent,
 )
 from app.domain.events.fdc_events import FdcDocumentAnalyzedEvent, FdcIngestionFailedEvent
+from app.domain.ports.acta_builder_port import ActaBuilderFactoryPort
 from app.domain.ports.ai_fdc_analyzer_port import AiFdcAnalyzerPort
 from app.domain.ports.defense_ai_ports import (
     DefenseAiDialogPort,
@@ -40,6 +42,7 @@ from app.infrastructure.adapters.gemini_transcribe_adapter import GeminiTranscri
 from app.infrastructure.adapters.gemini_tts_adapter import GeminiTtsAdapter
 from app.infrastructure.adapters.json_rubric_provider_adapter import JsonRubricProviderAdapter
 from app.infrastructure.adapters.resilient_ai_analyzer import ResilientAiAnalyzer
+from app.infrastructure.builders.acta_builder_factory import ActaBuilderFactory
 from app.infrastructure.db import models  # noqa: F401
 from app.infrastructure.db.base import Base
 from app.infrastructure.db.repositories.sqlalchemy_defense_repository import (
@@ -67,6 +70,7 @@ class Container:
         tts_adapter: SpeechTtsPort | None = None,
         stt_adapter: SpeechSttPort | None = None,
         rubric_provider: RubricProviderPort | None = None,
+        acta_builder_factory: ActaBuilderFactoryPort | None = None,
     ) -> None:
         self.settings = settings
         self.engine = engine or build_engine(settings.DATABASE_URL)
@@ -99,6 +103,7 @@ class Container:
             max_retries=settings.GEMINI_MAX_RETRIES,
             base_delay_seconds=settings.GEMINI_RETRY_BASE_DELAY_SECONDS,
         )
+        self.acta_builder_factory: ActaBuilderFactoryPort = acta_builder_factory or ActaBuilderFactory()
         self.event_bus = self._build_event_bus()
 
     @staticmethod
@@ -245,5 +250,12 @@ class Container:
                 uow=uow,
                 event_bus=self.event_bus,
                 min_words=self.settings.DEFENSE_MIN_WORDS,
+            ),
+            export_acta_uc=ExportDefenseActaUseCase(
+                project_repo=project_repo,
+                document_repo=document_repo,
+                defense_repo=defense_repo,
+                rubric_provider=self.rubric_provider,
+                builder_factory=self.acta_builder_factory,
             ),
         )

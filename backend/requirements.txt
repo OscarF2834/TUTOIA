@@ -13,3 +13,4 @@ pypdf>=4.2
 python-docx>=1.1
 psycopg[binary]>=3.1
 edge-tts>=6.1.12
+reportlab>=4.2.0

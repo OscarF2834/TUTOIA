@@ -1,7 +1,8 @@
-"""Router HTTP v1 para sustentación oral con AURA (Módulo 2)."""
+"""Router HTTP v1 para sustentación oral con AURA y actas oficiales (Módulos 2 y 3A)."""
+from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, File, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Query, UploadFile
 from fastapi.responses import Response
 from starlette.concurrency import run_in_threadpool
 
@@ -12,6 +13,7 @@ from app.application.dto.defense_dtos import (
 )
 from app.application.facades.sustentacion_facade import SustentacionFacade
 from app.core.container import Container
+from app.domain.builders.acta_report_data import ActaExportFormat
 from app.domain.entities.defense_enums import JuryProfile
 from app.presentation.api.dependencies import get_container, get_defense_facade
 from app.presentation.api.v1.schemas.defense_http_schemas import (
@@ -132,3 +134,28 @@ async def submit_text_turn(
     )
     result = await run_in_threadpool(facade.submit_text_turn, cmd)
     return TurnSubmissionResponseSchema.from_result(result)
+
+
+@router.get(
+    "/sessions/{session_id}/report",
+    responses={
+        200: {"description": "Acta oficial generada en PDF o Word (.docx)."},
+        404: _DEFENSE_ERRORS[404],
+        409: _DEFENSE_ERRORS[409],
+    },
+    summary="Exportar el Acta Oficial de Sustentación en PDF o DOCX",
+)
+async def export_defense_acta(
+    session_id: UUID,
+    format: Literal["pdf", "docx"] = Query(default="pdf", description="Formato de exportación: pdf o docx."),
+    facade: SustentacionFacade = Depends(get_defense_facade),
+) -> Response:
+    exported = await run_in_threadpool(facade.export_acta, session_id, ActaExportFormat(format))
+    return Response(
+        content=exported.content,
+        media_type=exported.mime_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{exported.filename}"',
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
+    )
