@@ -212,13 +212,8 @@ class SubmitDefenseTurnUseCase:
         elif session.current_question_index + 1 < len(session.planned_questions):
             session.advance_to_next_question(eval_result.transition_message)
         else:
-            student_name = (
-                project.authors[0].full_name.strip().split()[0].capitalize()
-                if project.authors and project.authors[0].full_name.strip()
-                else "estudiante"
-            )
             overall_score, summary = self._build_final_summary(
-                all_turns, eval_result, rubric, student_name
+                all_turns, eval_result, rubric, project.formatted_authors_greeting(), project.is_team()
             )
             session.complete(overall_score=overall_score, summary=summary, completed_at=now)
 
@@ -243,6 +238,7 @@ class SubmitDefenseTurnUseCase:
         last_eval,
         rubric,
         student_name: str = "estudiante",
+        is_team: bool = False,
     ) -> tuple[float, FinalDefenseSummary]:
         averages: dict[str, float] = {}
         for crit in rubric.criteria:
@@ -256,9 +252,9 @@ class SubmitDefenseTurnUseCase:
         overall = compute_weighted_score(averages, rubric)
         verdict = resolve_uts_verdict(overall)
         closing = (
-            f"Excelente cierre, {student_name}. Has concluido tu sustentación ante AURA. "
-            f"Tu calificación consolidada preliminar es {overall:.2f} sobre 5.00, "
-            f"correspondiente al concepto {verdict.value}."
+            f"Excelente cierre, {student_name}. Han concluido su sustentación ante AURA. Su calificación consolidada preliminar es {overall:.2f} sobre 5.00, correspondiente al concepto {verdict.value}."
+            if is_team
+            else f"Excelente cierre, {student_name}. Has concluido tu sustentación ante AURA. Tu calificación consolidada preliminar es {overall:.2f} sobre 5.00, correspondiente al concepto {verdict.value}."
         )
         summary = FinalDefenseSummary(
             verdict=verdict,

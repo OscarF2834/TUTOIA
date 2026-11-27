@@ -48,9 +48,16 @@ class Fdc124ProposalStrategy(FdcAnalysisStrategy):
     def build_system_instruction(self) -> str:
         return (
             "Eres un evaluador académico experto de las Unidades Tecnológicas de Santander (UTS). "
-            "Analizas propuestas de trabajo de grado en formato oficial F-DC-124. "
-            "Usa únicamente evidencia explícita del contenido diligenciado por los autores; no inventes "
-            "datos, citas ni métricas. Si un dato no aparece, indícalo con claridad o usa null según el esquema. "
+            "Analizas propuestas de trabajo de grado en etapa de formulación y planeación (formato oficial F-DC-124) "
+            "conforme a la Rejilla de Evaluación de Propuesta UTS: claridad del problema y pregunta de investigación, "
+            "solidez de la justificación y aportes, coherencia título ↔ objetivo general ↔ objetivos específicos, "
+            "pertinencia del estado del arte y fundamento teórico, y viabilidad de resultados esperados, plan de actividades, "
+            "presupuesto y consideraciones éticas. "
+            "Regla explícita: en un F-DC-124 está PROHIBIDO penalizar o reportar como vacío de severidad ALTA la ausencia "
+            "de software implementado, datos empíricos finales o validaciones ya ejecutadas. "
+            "Formula los puntos de indagación (detected_gaps_for_defense) como focos constructivos de aclaración sobre la "
+            "planeación y viabilidad, nunca como reproches de ejecución. "
+            "Usa únicamente evidencia explícita del contenido diligenciado por los autores; no inventes datos ni métricas. "
             "Ignora estrictamente secciones administrativas o residuales de plantilla: Información sobre el pago "
             "de la modalidad (LQ, Nequi, Bancolombia, comprobantes), REJILLA DE EVALUACIÓN, espacio del comité "
             "de trabajo de grado, firmas, cláusula de tratamiento de datos personales, ANEXO A (Turnitin), "
@@ -60,16 +67,17 @@ class Fdc124ProposalStrategy(FdcAnalysisStrategy):
 
     def build_analysis_prompt(self) -> str:
         return (
-            "Analiza integralmente esta propuesta oficial F-DC-124 de las UTS. "
+            "Analiza integralmente esta propuesta oficial F-DC-124 de las UTS (etapa de formulación y planeación). "
             "Desde la 'Ficha técnica de la propuesta', extrae título, modalidad marcada con X/x "
             "(Proyecto de Investigación, Desarrollo Tecnológico, Monografía o Emprendimiento), programa "
             "académico, director y únicamente los autores diligenciados con su cédula en student_code "
             "(ignorando filas vacías como Estudiante 3 o Codirector sin diligenciar). "
             "Ten presente que el F-DC-124 no exige una sección titulada literalmente 'Metodología': "
-            "extrae las fases, entregables, herramientas y enfoque técnico desde el Plan de actividades "
-            "(cronograma por fases), Resultados esperados, Objetivos, Estado del arte y Fundamento Teórico "
-            "(sin exigir resultados ejecutados, pues es una propuesta). "
+            "extrae las fases planeadas, entregables esperados, herramientas propuestas y enfoque técnico desde el "
+            "Plan de actividades (cronograma por fases), Resultados esperados, Objetivos, Estado del arte, "
+            "Fundamento Teórico, Presupuesto y Consideraciones éticas, sin exigir resultados ni pruebas ya ejecutadas. "
             "Ignora pagos/consignaciones, rejilla de evaluación, firmas, tratamiento de datos y Anexos A/B/C. "
-            "Evalúa la coherencia interna entre problema, objetivos, fundamento y plan de actividades, "
-            "e identifica entre 3 y 6 vacíos o riesgos de factibilidad para futuras preguntas de sustentación."
+            "Evalúa según la Rejilla UTS la coherencia título ↔ objetivo general ↔ objetivos específicos, "
+            "justificación, fundamento teórico y viabilidad del plan; e identifica entre 3 y 6 focos constructivos "
+            "de aclaración sobre planeación y viabilidad para la sustentación (sin marcar como severidad ALTA la falta de implementación)."
         )

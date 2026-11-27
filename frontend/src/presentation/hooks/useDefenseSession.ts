@@ -29,10 +29,21 @@ export function useDefenseSession(initialParams: InitialDefenseParams = {}) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
+  const sessionRef = useRef<DefenseSession | null>(null);
   const audioRef = useRef<ReturnType<typeof useDefenseAudio> | null>(null);
   const submitTurnRef = useRef<
     (sessionId: string, fn: () => Promise<Awaited<ReturnType<typeof tutoiaApi.submitTextTurn>>>) => Promise<boolean>
   >(async () => false);
+
+  const syncSession = useCallback(
+    (updater: DefenseSession | null | ((prev: DefenseSession | null) => DefenseSession | null)) => {
+      const next = typeof updater === "function" ? updater(sessionRef.current) : updater;
+      sessionRef.current = next;
+      setSession(next);
+      return next;
+    },
+    [],
+  );
 
   const audio = useDefenseAudio({
     onAudioReady: (sessionId, blob, filename) => {
@@ -43,7 +54,7 @@ export function useDefenseSession(initialParams: InitialDefenseParams = {}) {
     onAudioError: (msg) => setErrorMessage(msg),
     onSpeechFinished: (targetSession) => {
       if (targetSession.state === "AURA_SPEAKING") {
-        setSession((prev) =>
+        syncSession((prev) =>
           prev && prev.sessionId === targetSession.sessionId
             ? { ...prev, state: "LISTENING_STUDENT" }
             : prev,
@@ -60,28 +71,28 @@ export function useDefenseSession(initialParams: InitialDefenseParams = {}) {
     ): Promise<boolean> => {
       setIsSubmittingTurn(true);
       setErrorMessage(null);
-      setSession((prev) => (prev ? { ...prev, state: "EVALUATING_TURN" } : prev));
+      syncSession((prev) => (prev ? { ...prev, state: "EVALUATING_TURN" } : prev));
       try {
         const result = await requestFn();
         if (!mountedRef.current) return true;
-        let updated: DefenseSession | null = null;
-        setSession((prev) => {
-          if (!prev) return prev;
-          updated = mergeTurnSubmissionIntoSession(prev, result);
-          return updated;
-        });
+        const currentSession = sessionRef.current;
+        const updated = currentSession
+          ? syncSession(mergeTurnSubmissionIntoSession(currentSession, result))
+          : null;
         setIsSubmittingTurn(false);
-        if (updated) void audioRef.current?.speakPrompt(updated, !result.isCompleted);
+        if (updated) {
+          void audioRef.current?.speakPrompt(updated, !result.isCompleted, false);
+        }
         return true;
       } catch (err) {
         if (!mountedRef.current) return false;
         setIsSubmittingTurn(false);
-        setSession((prev) => (prev ? { ...prev, state: "LISTENING_STUDENT" } : prev));
+        syncSession((prev) => (prev ? { ...prev, state: "LISTENING_STUDENT" } : prev));
         setErrorMessage(extractErrorMessage(err));
         return false;
       }
     },
-    [],
+    [syncSession],
   );
   submitTurnRef.current = applyTurnSubmission;
 
@@ -105,17 +116,17 @@ export function useDefenseSession(initialParams: InitialDefenseParams = {}) {
         if (!mountedRef.current) return;
         window.sessionStorage.setItem(DEFENSE_SESSION_KEY, created.sessionId);
         window.sessionStorage.setItem(LAST_FDC_KEY, created.fdcDocumentId);
-        setSession(created);
+        syncSession(created);
         setIsCreating(false);
         void loadFdcMetadata(created.fdcDocumentId);
-        void audioRef.current?.speakPrompt(created, true);
+        void audioRef.current?.speakPrompt(created, true, false);
       } catch (err) {
         if (!mountedRef.current) return;
         setIsCreating(false);
         setErrorMessage(extractErrorMessage(err));
       }
     },
-    [loadFdcMetadata],
+    [loadFdcMetadata, syncSession],
   );
 
   useEffect(() => {
@@ -132,11 +143,11 @@ export function useDefenseSession(initialParams: InitialDefenseParams = {}) {
           .getSession(savedSessionId)
           .then((loaded) => {
             if (!mountedRef.current) return;
-            setSession(loaded);
+            syncSession(loaded);
             setIsHydrating(false);
             void loadFdcMetadata(loaded.fdcDocumentId);
             if (loaded.state !== "COMPLETED") {
-              void audioRef.current?.speakPrompt(loaded, false);
+              void audioRef.current?.speakPrompt(loaded, false, false);
             }
           })
           .catch(() => {
@@ -152,28 +163,29 @@ export function useDefenseSession(initialParams: InitialDefenseParams = {}) {
     return () => {
       mountedRef.current = false;
     };
-  }, [initialParams.fdcDocumentId, initialParams.juryProfile, loadFdcMetadata, startSession]);
+  }, [initialParams.fdcDocumentId, initialParams.juryProfile, loadFdcMetadata, startSession, syncSession]);
 
   const submitTextTurn = useCallback(
     async (text: string): Promise<boolean> => {
-      if (!session) return false;
+      const active = sessionRef.current;
+      if (!active) return false;
       audio.unlockAudio();
       audio.stopAll();
-      return applyTurnSubmission(session.sessionId, () =>
-        tutoiaApi.submitTextTurn(session.sessionId, text),
+      return applyTurnSubmission(active.sessionId, () =>
+        tutoiaApi.submitTextTurn(active.sessionId, text),
       );
     },
-    [applyTurnSubmission, audio, session],
+    [applyTurnSubmission, audio],
   );
 
   const resetDefenseSession = useCallback(() => {
     audio.stopAll();
     window.sessionStorage.removeItem(DEFENSE_SESSION_KEY);
-    setSession(null);
+    syncSession(null);
     setErrorMessage(null);
     const lastFdcId = window.sessionStorage.getItem(LAST_FDC_KEY);
     if (lastFdcId) void loadFdcMetadata(lastFdcId);
-  }, [audio, loadFdcMetadata]);
+  }, [audio, loadFdcMetadata, syncSession]);
 
   return {
     session,
@@ -193,14 +205,16 @@ export function useDefenseSession(initialParams: InitialDefenseParams = {}) {
     errorMessage,
     startSession,
     repeatQuestion: () => {
-      if (!session) return;
+      const active = sessionRef.current;
+      if (!active) return;
       audio.unlockAudio();
-      void audio.speakPrompt(session, session.state !== "COMPLETED");
+      void audio.speakPrompt(active, active.state !== "COMPLETED", true);
     },
     startMic: () => {
-      if (session) {
+      const active = sessionRef.current;
+      if (active) {
         setErrorMessage(null);
-        audio.startMic(session.sessionId);
+        audio.startMic(active.sessionId);
       }
     },
     stopAndSubmitMic: audio.stopAndSubmitMic,

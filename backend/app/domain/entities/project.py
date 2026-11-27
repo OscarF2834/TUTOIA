@@ -37,3 +37,30 @@ class Project:
     created_at: datetime
     updated_at: datetime
     director_name: str | None = None
+
+    def author_first_names(self) -> list[str]:
+        """Extrae el primer nombre limpio de cada integrante registrado en el proyecto."""
+        names: list[str] = []
+        for author in self.authors:
+            raw = author.full_name.strip()
+            if not raw:
+                continue
+            token = raw.split()[0].strip(",.;:")
+            if token:
+                names.append(token.capitalize())
+        return names
+
+    def is_team(self) -> bool:
+        """Indica si el trabajo de grado cuenta con dos o más sustentantes."""
+        return len(self.author_first_names()) > 1
+
+    def formatted_authors_greeting(self) -> str:
+        """Formatea saludo natural para 1, 2 o más sustentantes (ej. 'Pedro y Oscar')."""
+        names = self.author_first_names()
+        if not names:
+            return "estudiante"
+        if len(names) == 1:
+            return names[0]
+        if len(names) == 2:
+            return f"{names[0]} y {names[1]}"
+        return f"{', '.join(names[:-1])} y {names[-1]}"

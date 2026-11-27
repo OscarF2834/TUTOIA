@@ -36,6 +36,7 @@ export function useDefenseAudio({
   const recorderRef = useRef<InteractiveMicRecorderAdapter | null>(null);
   const mountedRef = useRef(true);
   const speakRunRef = useRef(0);
+  const lastSpokenKeyRef = useRef<string | null>(null);
   const autoSubmitRef = useRef(true);
   const callbacksRef = useRef({ onAudioReady, onAudioError, onSpeechFinished });
 
@@ -78,10 +79,19 @@ export function useDefenseAudio({
   }, []);
 
   const speakPrompt = useCallback(
-    async (targetSession: DefenseSession, autoListenAfter: boolean) => {
+    async (targetSession: DefenseSession, autoListenAfter: boolean, allowRepeat = false) => {
       const player = playerRef.current;
       const recorder = recorderRef.current;
       if (!player || !recorder) return;
+
+      const promptText = targetSession.activeQuestionText.trim();
+      if (!promptText) return;
+
+      const spokenKey = `${targetSession.sessionId}:${targetSession.turns.length}:${targetSession.state}:${promptText}`;
+      if (!allowRepeat && lastSpokenKeyRef.current === spokenKey) {
+        return;
+      }
+      lastSpokenKeyRef.current = spokenKey;
 
       recorder.cancel();
       setIsRecording(false);
@@ -89,7 +99,6 @@ export function useDefenseAudio({
       setIsAuraSpeaking(true);
       setNeedsPlayGesture(false);
 
-      const promptText = targetSession.activeQuestionText;
       const outcome = await player.playPrompt(
         () => tutoiaApi.synthesizeSpeech(targetSession.sessionId, promptText),
         promptText,
@@ -102,6 +111,7 @@ export function useDefenseAudio({
       if (!mountedRef.current || runId !== speakRunRef.current) return;
       setIsAuraSpeaking(false);
       if (outcome === "blocked") {
+        lastSpokenKeyRef.current = null;
         setNeedsPlayGesture(true);
         return;
       }
@@ -115,6 +125,7 @@ export function useDefenseAudio({
   );
 
   const stopAll = useCallback(() => {
+    lastSpokenKeyRef.current = null;
     recorderRef.current?.cancel();
     playerRef.current?.stop();
     setIsRecording(false);
@@ -147,7 +158,10 @@ export function useDefenseAudio({
       setIsAuraSpeaking(false);
       void startMic(sessionId);
     },
-    stopAndSubmitMic: () => recorderRef.current?.finishAndSubmit(),
+    stopAndSubmitMic: () => {
+      void playerRef.current?.unlock();
+      recorderRef.current?.finishAndSubmit();
+    },
     restartMic: () => recorderRef.current?.restart(),
     toggleAutoSubmit,
   };

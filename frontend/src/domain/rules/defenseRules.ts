@@ -39,10 +39,10 @@ export interface CriterionMeta {
 }
 
 export const CRITERION_META: ReadonlyArray<CriterionMeta> = [
-  { code: "PERTINENCIA", label: "Pertinencia y problema", weightPercent: 30 },
-  { code: "COHERENCIA", label: "Coherencia documental", weightPercent: 25 },
-  { code: "FUNDAMENTACION", label: "Fundamentación teórica", weightPercent: 25 },
-  { code: "METODOLOGIA", label: "Metodología y validación", weightPercent: 20 },
+  { code: "pertinencia", label: "Pertinencia de la respuesta", weightPercent: 30 },
+  { code: "coherencia", label: "Coherencia y fluidez argumentativa", weightPercent: 25 },
+  { code: "fundamentacion", label: "Fundamentación teórica", weightPercent: 25 },
+  { code: "metodologia", label: "Dominio metodológico", weightPercent: 20 },
 ];
 
 export function validateTextTurn(text: string): string | null {

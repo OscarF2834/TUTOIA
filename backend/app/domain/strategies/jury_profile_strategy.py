@@ -3,6 +3,16 @@ from abc import ABC, abstractmethod
 
 from app.domain.entities.defense_enums import JuryProfile
 from app.domain.entities.fdc_document import FdcType
+from app.domain.strategies.defense_stage_policy import resolve_defense_stage_policy
+
+
+def _team_eval_note(student_name: str, is_team: bool) -> str:
+    if not is_team:
+        return ""
+    return (
+        f" Al ser sustentación en equipo ({student_name}), dirige la transición y retroalimentación a todos "
+        "los integrantes en plural natural (sin centrarte únicamente en una sola persona)."
+    )
 
 
 class JuryProfileStrategy(ABC):
@@ -23,15 +33,20 @@ class JuryProfileStrategy(ABC):
     def follow_up_score_threshold(self) -> float:
         """Nota ponderada bajo la cual se dispara una contrapregunta."""
 
+    @property
+    @abstractmethod
+    def include_gaps_in_base_questions(self) -> bool:
+        """Indica si las preguntas base deben inyectar detected_gaps como foco crítico."""
+
     @abstractmethod
     def build_question_generation_guidance(
-        self, fdc_type: FdcType, student_name: str = "estudiante"
+        self, fdc_type: FdcType, student_name: str = "estudiante", is_team: bool = False
     ) -> str:
         """Directrices para generar las 4 preguntas base según formato y jurado."""
 
     @abstractmethod
     def build_turn_evaluation_guidance(
-        self, fdc_type: FdcType, student_name: str = "estudiante"
+        self, fdc_type: FdcType, student_name: str = "estudiante", is_team: bool = False
     ) -> str:
         """Directrices para evaluar la respuesta del estudiante y generar transición."""
 
@@ -51,7 +66,7 @@ class JuryProfileStrategy(ABC):
 
 
 class StandardUtsJuryStrategy(JuryProfileStrategy):
-    """Jurado institucional cercano, dialogante y equilibrado conforme a la rúbrica UTS."""
+    """Jurado institucional cercano, no adversarial y equilibrado conforme a la rúbrica UTS."""
 
     @property
     def profile(self) -> JuryProfile:
@@ -65,31 +80,38 @@ class StandardUtsJuryStrategy(JuryProfileStrategy):
     def follow_up_score_threshold(self) -> float:
         return 3.5
 
+    @property
+    def include_gaps_in_base_questions(self) -> bool:
+        return False
+
     def build_question_generation_guidance(
-        self, fdc_type: FdcType, student_name: str = "estudiante"
+        self, fdc_type: FdcType, student_name: str = "estudiante", is_team: bool = False
     ) -> str:
-        scope = (
-            "propuesta de trabajo de grado F-DC-124 (descripción del problema, justificación, objetivos con plan de actividades y resultados esperados)"
-            if fdc_type == FdcType.FDC_124
-            else "informe final F-DC-125 (planteamiento del problema, justificación, objetivos con metodología ejecutada y resultados/conclusiones)"
-        )
+        stage_label = "F-DC-124 (propuesta)" if fdc_type == FdcType.FDC_124 else "F-DC-125 (informe final)"
+        address = f"el equipo ({student_name})" if is_team else student_name
         return (
-            f"Eres un jurado humano de las UTS cercano, respetuoso y conversacional dialogando con {student_name} sobre su {scope}. "
-            "Habla de tú natural y fluido, como en una sustentación real de sala universitaria, evitando preguntas rígidas tipo cuestionario."
+            f"Actúa como un docente jurado real de las UTS dialogando con {address} sobre su {stage_label}: "
+            "tono cercano, respetuoso, fluido y formativo (no fiscalizador ni adversarial). "
+            "Formula 4 preguntas base abiertas, claras y directas sobre el contenido real del documento para que "
+            f"{student_name} exponga y defienda su trabajo con naturalidad, sin convertir las preguntas base en ataques."
         )
 
     def build_turn_evaluation_guidance(
-        self, fdc_type: FdcType, student_name: str = "estudiante"
+        self, fdc_type: FdcType, student_name: str = "estudiante", is_team: bool = False
     ) -> str:
+        stage_rules = resolve_defense_stage_policy(fdc_type).build_evaluation_stage_rules()
         return (
-            f"Evalúa con objetividad y calidez académica la respuesta de {student_name} contra la rúbrica UTS y el documento {fdc_type.value}. "
-            "Redacta una transición humana breve que reaccione directamente a lo que respondió antes de avanzar, "
-            "y si omite puntos clave o la nota baja de 3.5 formula una contrapregunta conversacional."
+            f"Evalúa con objetividad, criterio formativo y calidez académica la intervención de {student_name}. "
+            f"{stage_rules} "
+            "Usa focos_aclaracion_apoyo únicamente como contexto auxiliar para proponer una contrapregunta puntual y "
+            "constructiva solo si la respuesta fue muy vaga, incompleta o contradictoria frente a su propio documento (nota < 3.5). "
+            "Redacta una transición humana breve y cordial reaccionando a lo dicho antes de avanzar."
+            f"{_team_eval_note(student_name, is_team)}"
         )
 
 
 class RigorousTechnicalJuryStrategy(JuryProfileStrategy):
-    """Jurado técnico riguroso pero dialogante, centrado en método, decisiones y evidencia."""
+    """Jurado técnico riguroso centrado en riesgos, supuestos y precisión respetando la etapa."""
 
     @property
     def profile(self) -> JuryProfile:
@@ -103,24 +125,29 @@ class RigorousTechnicalJuryStrategy(JuryProfileStrategy):
     def follow_up_score_threshold(self) -> float:
         return 4.2
 
+    @property
+    def include_gaps_in_base_questions(self) -> bool:
+        return True
+
     def build_question_generation_guidance(
-        self, fdc_type: FdcType, student_name: str = "estudiante"
+        self, fdc_type: FdcType, student_name: str = "estudiante", is_team: bool = False
     ) -> str:
-        scope = (
-            "propuesta técnica F-DC-124 (problema, justificación técnica, coherencia objetivos-plan y métricas esperadas)"
-            if fdc_type == FdcType.FDC_124
-            else "informe final F-DC-125 (decisiones de ingeniería, metodología aplicada, métricas y resultados reales)"
-        )
+        stage_label = "F-DC-124 (propuesta técnica)" if fdc_type == FdcType.FDC_124 else "F-DC-125 (informe final técnico)"
+        address = f"el equipo ({student_name})" if is_team else student_name
         return (
-            f"Eres un jurado técnico riguroso pero respetuoso y dialogante de las UTS conversando con {student_name} sobre su {scope}. "
-            "Combina cercanía humana (tratándolo por su nombre) con profundidad técnica sobre decisiones, supuestos y vacíos del FDC."
+            f"Actúa como jurado técnico riguroso pero respetuoso y dialogante de las UTS conversando con {address} "
+            f"sobre su {stage_label}. Respeta estrictamente la etapa del documento, pero profundiza en riesgos técnicos, "
+            "supuestos de diseño y focos críticos presentes en vacios_detectados."
         )
 
     def build_turn_evaluation_guidance(
-        self, fdc_type: FdcType, student_name: str = "estudiante"
+        self, fdc_type: FdcType, student_name: str = "estudiante", is_team: bool = False
     ) -> str:
+        stage_rules = resolve_defense_stage_policy(fdc_type).build_evaluation_stage_rules()
         return (
-            f"Contrasta con rigor lo dicho por {student_name} frente al contenido real de su {fdc_type.value}. "
-            "Penaliza respuestas genéricas sin respaldo en el proyecto, reconoce brevemente lo acertado en una transición humana "
-            "y pide aclaración técnica directa en lenguaje natural si la nota es inferior a 4.2."
+            f"Contrasta con rigor técnico y claridad conceptual la respuesta de {student_name} frente a su documento. "
+            f"{stage_rules} "
+            "Penaliza respuestas genéricas sin sustento en el documento o en ingeniería, reconoce brevemente lo acertado "
+            "en la transición humana y solicita aclaración técnica directa si la nota es inferior a 4.2."
+            f"{_team_eval_note(student_name, is_team)}"
         )

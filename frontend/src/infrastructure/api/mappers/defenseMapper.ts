@@ -123,9 +123,17 @@ function mapTurn(dto: DefenseTurnDto): DefenseTurn {
 }
 
 function mapFinalSummary(dto: FinalDefenseSummaryDto): FinalDefenseSummary {
+  const normalizedAverages: Record<string, number> = {};
+  for (const [key, value] of Object.entries(dto.criteria_averages ?? {})) {
+    const cleanKey = key.trim().toLowerCase();
+    const numeric = Number(value);
+    if (cleanKey && Number.isFinite(numeric)) {
+      normalizedAverages[cleanKey] = numeric;
+    }
+  }
   return {
     verdict: dto.verdict,
-    criteriaAverages: dto.criteria_averages,
+    criteriaAverages: normalizedAverages,
     strengths: dto.strengths,
     improvements: dto.improvements,
     closingMessage: dto.closing_message,

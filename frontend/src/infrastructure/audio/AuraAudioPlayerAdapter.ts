@@ -3,12 +3,43 @@ export type AudioPlaybackOutcome = "tts" | "web-speech" | "blocked";
 export type AudioLevelListener = (audioLevel: number, frequencyBins: number[]) => void;
 
 const BIN_COUNT = 28;
+let sharedAudioContext: AudioContext | null = null;
+let gestureListenerAttached = false;
 
 function getAudioContextConstructor(): typeof AudioContext {
   return (
     window.AudioContext ||
     (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
   );
+}
+
+function getSharedAudioContext(): AudioContext {
+  if (!sharedAudioContext || sharedAudioContext.state === "closed") {
+    const AudioCtx = getAudioContextConstructor();
+    sharedAudioContext = new AudioCtx();
+  }
+  attachFirstGestureUnlocker();
+  return sharedAudioContext;
+}
+
+function attachFirstGestureUnlocker(): void {
+  if (gestureListenerAttached || typeof window === "undefined") return;
+  gestureListenerAttached = true;
+
+  const unlockOnGesture = () => {
+    const ctx = sharedAudioContext;
+    if (ctx && ctx.state === "suspended") {
+      void ctx.resume().catch(() => {});
+    }
+    if (!ctx || ctx.state === "running") {
+      window.removeEventListener("pointerdown", unlockOnGesture);
+      window.removeEventListener("keydown", unlockOnGesture);
+      gestureListenerAttached = false;
+    }
+  };
+
+  window.addEventListener("pointerdown", unlockOnGesture, { passive: true });
+  window.addEventListener("keydown", unlockOnGesture, { passive: true });
 }
 
 function pickSpanishVoice(): SpeechSynthesisVoice | null {
@@ -24,13 +55,18 @@ function pickSpanishVoice(): SpeechSynthesisVoice | null {
 }
 
 export class AuraAudioPlayerAdapter {
-  private audioCtx: AudioContext | null = null;
   private activeSource: AudioBufferSourceNode | null = null;
   private rafId: number | null = null;
   private activeRunId = 0;
 
+  constructor() {
+    if (typeof window !== "undefined") {
+      attachFirstGestureUnlocker();
+    }
+  }
+
   async unlock(): Promise<boolean> {
-    const ctx = this.ensureContext();
+    const ctx = getSharedAudioContext();
     if (ctx.state === "suspended") {
       await ctx.resume().catch(() => {});
     }
@@ -88,19 +124,8 @@ export class AuraAudioPlayerAdapter {
   }
 
   dispose(): void {
+    // Mantiene sharedAudioContext vivo entre turnos y recargas suaves sin perder permiso autoplay.
     this.stop();
-    if (this.audioCtx) {
-      void this.audioCtx.close().catch(() => {});
-      this.audioCtx = null;
-    }
-  }
-
-  private ensureContext(): AudioContext {
-    if (!this.audioCtx || this.audioCtx.state === "closed") {
-      const AudioCtx = getAudioContextConstructor();
-      this.audioCtx = new AudioCtx();
-    }
-    return this.audioCtx;
   }
 
   private async playBlobWithAnalyser(
@@ -108,9 +133,15 @@ export class AuraAudioPlayerAdapter {
     runId: number,
     onFrame: AudioLevelListener,
   ): Promise<void> {
-    const ctx = this.ensureContext();
+    const ctx = getSharedAudioContext();
+    if (ctx.state === "suspended") {
+      await ctx.resume().catch(() => {});
+    }
     const audioBuffer = await ctx.decodeAudioData(await blob.arrayBuffer());
     if (runId !== this.activeRunId) return;
+    if (ctx.state === "suspended") {
+      await ctx.resume().catch(() => {});
+    }
 
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 128;

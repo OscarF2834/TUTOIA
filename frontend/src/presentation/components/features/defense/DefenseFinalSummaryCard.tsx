@@ -86,7 +86,10 @@ export function DefenseFinalSummaryCard({
           </h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {CRITERION_META.map((criterion) => {
-              const score = summary.criteriaAverages[criterion.code] ?? 0;
+              const score =
+                summary.criteriaAverages[criterion.code] ??
+                summary.criteriaAverages[criterion.code.toLowerCase()] ??
+                0;
               return (
                 <div
                   key={criterion.code}

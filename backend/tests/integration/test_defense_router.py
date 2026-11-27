@@ -66,11 +66,23 @@ def test_complete_four_question_defense_flow_with_tts_audio_and_text(
             assert body["state"] == "COMPLETED"
             assert body["overall_score"] >= 3.0
             assert body["final_summary"]["verdict"] == "APROBADO"
+            averages = body["final_summary"]["criteria_averages"]
+            assert set(averages.keys()) == {"pertinencia", "coherencia", "fundamentacion", "metodologia"}
+            assert all(0.0 < averages[k] <= 5.0 for k in averages)
+            expected_overall = round(
+                averages["pertinencia"] * 0.30
+                + averages["coherencia"] * 0.25
+                + averages["fundamentacion"] * 0.25
+                + averages["metodologia"] * 0.20,
+                2,
+            )
+            assert body["overall_score"] == expected_overall
 
     assert len(fake_tts_adapter.calls) == 4
     hydrated = client.get(f"/api/v1/defense/sessions/{sid}").json()
     assert hydrated["state"] == "COMPLETED"
     assert len(hydrated["turns"]) == 4
+    assert hydrated["final_summary"]["criteria_averages"] == body["final_summary"]["criteria_averages"]
 
     blocked_turn = client.post(
         f"/api/v1/defense/sessions/{sid}/turns/text",
