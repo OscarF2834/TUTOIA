@@ -6,3 +6,4 @@ export { Input, type InputProps } from "./Input";
 export { Modal, type ModalProps } from "./Modal";
 export { ProgressBar, type ProgressBarProps } from "./ProgressBar";
 export { Select, type SelectOption, type SelectProps } from "./Select";
+export { Textarea, type TextareaProps } from "./Textarea";

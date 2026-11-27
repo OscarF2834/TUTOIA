@@ -1,6 +1,9 @@
 import type { FindingStatus, GapSeverity, FdcDocumentResult } from "@/domain/models/fdc";
-import { sortGapsBySeverity } from "@/domain/rules/fdcFileRules";
-import { getAlignmentAxisLabel, getGapAxisLabel } from "@/domain/rules/fdcLabelProfiles";
+import {
+  getAlignmentAxisLabel,
+  getGapAxisLabel,
+  sortGapsBySeverity,
+} from "@/domain/rules/fdcFileRules";
 import { Badge, Button, Modal, type BadgeVariant } from "@/presentation/components/ui";
 import { cn } from "@/presentation/components/ui/cn";
 

@@ -32,7 +32,7 @@ function extractFastApiDetail(rawDetail: unknown, fallback: string): string {
   return fallback;
 }
 
-export async function httpRequest<T>(url: string, options: RequestInit = {}): Promise<T> {
+async function executeFetch(url: string, options: RequestInit = {}): Promise<Response> {
   let response: Response;
   try {
     response = await fetch(url, options);
@@ -70,5 +70,15 @@ export async function httpRequest<T>(url: string, options: RequestInit = {}): Pr
     throw new ApiHttpError(response.status, code, detail, context);
   }
 
+  return response;
+}
+
+export async function httpRequest<T>(url: string, options: RequestInit = {}): Promise<T> {
+  const response = await executeFetch(url, options);
   return (await response.json()) as T;
+}
+
+export async function requestBlob(url: string, options: RequestInit = {}): Promise<Blob> {
+  const response = await executeFetch(url, options);
+  return await response.blob();
 }

@@ -19,7 +19,9 @@ const GAP_AXIS_LABELS: Record<string, string> = {
   PROBLEMA: "Problema",
   FUNDAMENTACION: "Fundamentación teórica",
   METODOLOGIA: "Metodología",
+  METODOLOGIA_O_PLAN: "Metodología y diseño",
   RESULTADOS: "Resultados",
+  RESULTADOS_O_VALIDACION: "Resultados y conclusiones",
   CONCLUSIONES: "Conclusiones",
 };
 
@@ -39,7 +41,9 @@ const FDC_LABEL_PROFILES: Record<FdcType, FdcLabelProfile> = {
     gapAxis: {
       ...GAP_AXIS_LABELS,
       METODOLOGIA: "Plan de actividades y validación",
+      METODOLOGIA_O_PLAN: "Plan de actividades y validación",
       RESULTADOS: "Resultados esperados",
+      RESULTADOS_O_VALIDACION: "Resultados esperados",
     },
     resultsSectionTitle: "Resultados esperados",
     resultsEmptyMessage: "La propuesta no declara resultados esperados explícitos.",

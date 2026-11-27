@@ -2,6 +2,17 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from app.domain.exceptions.defense_exceptions import (
+    AudioTooLargeError,
+    DefenseSessionNotFoundError,
+    EmptyAudioError,
+    InvalidDefenseStateTransitionError,
+    InvalidSpeechInputError,
+    TranscriptTooShortError,
+    UnintelligibleAudioError,
+    UnsupportedAudioFormatError,
+    UnsupportedJuryProfileError,
+)
 from app.domain.exceptions.fdc_exceptions import (
     AiProviderNotConfiguredError,
     AiProviderUnavailableError,
@@ -29,6 +40,15 @@ _EXCEPTION_STATUS_MAP: dict[type[FdcDomainError], int] = {
     AiProviderNotConfiguredError: 503,
     AiProviderUnavailableError: 502,
     AiResponseValidationError: 502,
+    InvalidDefenseStateTransitionError: 409,
+    DefenseSessionNotFoundError: 404,
+    UnsupportedJuryProfileError: 422,
+    EmptyAudioError: 422,
+    AudioTooLargeError: 413,
+    UnsupportedAudioFormatError: 415,
+    UnintelligibleAudioError: 422,
+    TranscriptTooShortError: 422,
+    InvalidSpeechInputError: 422,
 }
 
 

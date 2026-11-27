@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { GraduationCap } from "lucide-react";
+import type { JuryProfile } from "@/domain/models/defense";
 import { Badge, Card } from "@/presentation/components/ui";
 import { FdcAnalysisProgress } from "@/presentation/components/features/fdc/FdcAnalysisProgress";
 import { FdcAnalysisSummaryCard } from "@/presentation/components/features/fdc/FdcAnalysisSummaryCard";
@@ -8,7 +9,11 @@ import { FdcGapsDetailModal } from "@/presentation/components/features/fdc/FdcGa
 import { FdcUploadForm } from "@/presentation/components/features/fdc/FdcUploadForm";
 import { useFdcIngestion } from "@/presentation/hooks/useFdcIngestion";
 
-export default function FdcIngestionPage() {
+export interface FdcIngestionPageProps {
+  onStartDefense?: (documentId: string, juryProfile: JuryProfile) => void;
+}
+
+export default function FdcIngestionPage({ onStartDefense }: FdcIngestionPageProps) {
   const {
     status,
     stageIndex,
@@ -80,6 +85,11 @@ export default function FdcIngestionPage() {
                   setDetailsOpen(false);
                   resetForNewUpload();
                 }}
+                onStartDefense={
+                  onStartDefense
+                    ? (juryProfile) => onStartDefense(result.documentId, juryProfile)
+                    : undefined
+                }
               />
               <FdcGapsDetailModal
                 isOpen={detailsOpen}

@@ -1,5 +1,13 @@
 import type { DefenseGap, FdcErrorInfo, FdcModality, FdcType } from "@/domain/models/fdc";
 
+export {
+  getAlignmentAxisLabel,
+  getGapAxisLabel,
+  getResultsEmptyMessage,
+  getResultsSectionTitle,
+  type FdcLabelProfile,
+} from "@/domain/rules/fdcLabelProfiles";
+
 export const MAX_FDC_FILE_SIZE_MB = 20;
 export const MAX_FDC_FILE_SIZE_BYTES = MAX_FDC_FILE_SIZE_MB * 1024 * 1024;
 export const ALLOWED_FDC_EXTENSIONS = [".pdf", ".docx"] as const;

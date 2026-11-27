@@ -1,4 +1,4 @@
-"""Prueba de migración Alembic 0001 upgrade/downgrade sobre SQLite."""
+"""Prueba de migraciones Alembic 0001 y 0002 (upgrade/downgrade) sobre SQLite."""
 from pathlib import Path
 
 from alembic import command
@@ -22,8 +22,21 @@ def test_alembic_upgrade_and_downgrade(tmp_path: Path, monkeypatch) -> None:
         command.upgrade(cfg, "head")
         engine = create_engine(db_url)
         tables = set(inspect(engine).get_table_names())
-        assert {"projects", "fdc_documents", "fdc_analyses"}.issubset(tables)
+        assert {
+            "projects",
+            "fdc_documents",
+            "fdc_analyses",
+            "defense_sessions",
+            "defense_turns",
+        }.issubset(tables)
         engine.dispose()
+
+        command.downgrade(cfg, "0001")
+        engine_mid = create_engine(db_url)
+        tables_mid = set(inspect(engine_mid).get_table_names())
+        assert {"projects", "fdc_documents", "fdc_analyses"}.issubset(tables_mid)
+        assert not {"defense_sessions", "defense_turns"} & tables_mid
+        engine_mid.dispose()
 
         command.downgrade(cfg, "base")
         engine_after = create_engine(db_url)

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   AlertCircle,
   BookOpen,
@@ -5,18 +6,27 @@ import {
   Cpu,
   FilePlus2,
   ListChecks,
+  Mic,
   ShieldAlert,
   Users,
 } from "lucide-react";
+import type { JuryProfile } from "@/domain/models/defense";
 import type { CoherenceLevel, FdcDocumentResult, FdcModality } from "@/domain/models/fdc";
-import { FDC_TYPE_LABELS, formatFileSize, MODALITY_LABELS } from "@/domain/rules/fdcFileRules";
-import { getResultsEmptyMessage, getResultsSectionTitle } from "@/domain/rules/fdcLabelProfiles";
-import { Badge, Button, Card, type BadgeVariant } from "@/presentation/components/ui";
+import { JURY_PROFILE_OPTIONS } from "@/domain/rules/defenseRules";
+import {
+  FDC_TYPE_LABELS,
+  formatFileSize,
+  getResultsEmptyMessage,
+  getResultsSectionTitle,
+  MODALITY_LABELS,
+} from "@/domain/rules/fdcFileRules";
+import { Badge, Button, Card, Select, type BadgeVariant } from "@/presentation/components/ui";
 
 export interface FdcAnalysisSummaryCardProps {
   result: FdcDocumentResult;
   onOpenDetails: () => void;
   onReset: () => void;
+  onStartDefense?: (juryProfile: JuryProfile) => void;
 }
 
 const COHERENCE_BADGE: Record<CoherenceLevel, BadgeVariant> = {
@@ -29,7 +39,9 @@ export function FdcAnalysisSummaryCard({
   result,
   onOpenDetails,
   onReset,
+  onStartDefense,
 }: FdcAnalysisSummaryCardProps) {
+  const [juryProfile, setJuryProfile] = useState<JuryProfile>("ESTANDAR_UTS");
   const { project, analysis } = result;
   const syn = analysis.academicSynthesis;
   const modalityLabel = MODALITY_LABELS[project.modality as FdcModality] ?? project.modality;
@@ -204,6 +216,39 @@ export function FdcAnalysisSummaryCard({
             sustentación. El veredicto académico definitivo corresponde exclusivamente al jurado docente
             designado por las UTS.
           </div>
+
+          {onStartDefense && (
+            <div className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 sm:flex-row sm:items-end sm:justify-between">
+              <div className="space-y-1 sm:max-w-md">
+                <p className="text-sm font-semibold text-emerald-950">
+                  Paso siguiente · Simulación de sustentación oral con AURA
+                </p>
+                <p className="text-xs leading-relaxed text-emerald-900">
+                  AURA formulará preguntas contextualizadas sobre los hallazgos y vacíos de este{" "}
+                  {result.fdcType === "FDC_124" ? "documento F-DC-124" : "informe F-DC-125"}.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-end">
+                <div className="sm:w-56">
+                  <Select
+                    label="Perfil de jurado"
+                    value={juryProfile}
+                    options={JURY_PROFILE_OPTIONS}
+                    onChange={(e) => setJuryProfile(e.target.value as JuryProfile)}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  onClick={() => onStartDefense(juryProfile)}
+                  leftIcon={<Mic className="h-4 w-4" />}
+                >
+                  Iniciar sustentación con AURA
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </Card>
     </div>

@@ -23,6 +23,7 @@ from app.domain.events.fdc_events import FdcDocumentAnalyzedEvent, FdcIngestionF
 from app.domain.ports.ai_fdc_analyzer_port import RemoteFileRef
 from app.domain.strategies.fdc_analysis_strategy import FdcAnalysisStrategy
 from app.presentation.app_factory import register_fdc_module
+from tests.defense_fakes import FakeDefenseDialogAdapter, FakeSttAdapter, FakeTtsAdapter
 
 FDC_124_LINES = [
     "FORMATO F-DC-124 PROPUESTA DE TRABAJO DE GRADO UTS",
@@ -236,8 +237,35 @@ def test_settings(tmp_path: Path) -> Settings:
 
 
 @pytest.fixture
-def container(test_settings: Settings, fake_analyzer: FakeAiAnalyzer) -> Container:
-    cont = Container(settings=test_settings, analyzer=fake_analyzer)
+def fake_dialog_adapter() -> FakeDefenseDialogAdapter:
+    return FakeDefenseDialogAdapter()
+
+
+@pytest.fixture
+def fake_tts_adapter() -> FakeTtsAdapter:
+    return FakeTtsAdapter()
+
+
+@pytest.fixture
+def fake_stt_adapter() -> FakeSttAdapter:
+    return FakeSttAdapter()
+
+
+@pytest.fixture
+def container(
+    test_settings: Settings,
+    fake_analyzer: FakeAiAnalyzer,
+    fake_dialog_adapter: FakeDefenseDialogAdapter,
+    fake_tts_adapter: FakeTtsAdapter,
+    fake_stt_adapter: FakeSttAdapter,
+) -> Container:
+    cont = Container(
+        settings=test_settings,
+        analyzer=fake_analyzer,
+        dialog_adapter=fake_dialog_adapter,
+        tts_adapter=fake_tts_adapter,
+        stt_adapter=fake_stt_adapter,
+    )
     cont.init_db()
     return cont
 

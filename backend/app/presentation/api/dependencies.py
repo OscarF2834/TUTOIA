@@ -5,6 +5,7 @@ from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
 from app.application.facades.fdc_ingestion_facade import FdcIngestionFacade
+from app.application.facades.sustentacion_facade import SustentacionFacade
 from app.core.container import Container
 
 
@@ -30,3 +31,11 @@ def get_fdc_facade(
 ) -> FdcIngestionFacade:
     """Provee FdcIngestionFacade acoplada a la sesión de la petición."""
     return container.fdc_facade(session)
+
+
+def get_defense_facade(
+    container: Container = Depends(get_container),
+    session: Session = Depends(get_db_session),
+) -> SustentacionFacade:
+    """Provee SustentacionFacade acoplada a la sesión de la petición."""
+    return container.defense_facade(session)
