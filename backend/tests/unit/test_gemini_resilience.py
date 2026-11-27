@@ -74,6 +74,8 @@ def test_settings_defaults_prioritize_fast_models(monkeypatch: pytest.MonkeyPatc
         "GEMINI_TTS_MODEL",
         "GEMINI_TTS_FALLBACK_MODELS",
         "GEMINI_TTS_VOICE",
+        "TTS_PROVIDER",
+        "EDGE_TTS_VOICE",
         "GEMINI_TRANSCRIBE_MODEL",
         "GEMINI_TIMEOUT_SECONDS",
         "GEMINI_MAX_RETRIES",
@@ -85,8 +87,11 @@ def test_settings_defaults_prioritize_fast_models(monkeypatch: pytest.MonkeyPatc
     assert settings.gemini_fallback_models == ["gemini-3.8-flash"]
     assert settings.GEMINI_TTS_MODEL == "gemini-3.8-flash-lite-tts"
     assert settings.gemini_tts_fallback_models == ["gemini-2.5-flash-preview-tts"]
-    assert settings.GEMINI_TTS_VOICE == "Aoede"
-    assert settings.GEMINI_TRANSCRIBE_MODEL == "gemini-3.5-transcribe"
+    assert settings.GEMINI_TTS_VOICE == "Charon"
+    assert settings.TTS_PROVIDER == "edge"
+    assert settings.EDGE_TTS_VOICE == "es-CO-GonzaloNeural"
+    assert settings.GEMINI_TRANSCRIBE_MODEL == "gemini-3.5-flash-lite"
+    assert settings.gemini_transcribe_fallback_models == ["gemini-3.8-flash"]
     assert settings.GEMINI_TIMEOUT_SECONDS == 45
     assert settings.GEMINI_MAX_RETRIES == 1
 

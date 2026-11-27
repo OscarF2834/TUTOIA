@@ -143,6 +143,12 @@ class SubmitDefenseTurnUseCase:
         question = session.current_question()
         is_follow_up_turn = session.is_current_prompt_follow_up(previous_turns)
         asked_text = session.active_prompt_text(previous_turns)
+        next_index = session.current_question_index + 1
+        next_question = (
+            session.planned_questions[next_index]
+            if next_index < len(session.planned_questions)
+            else None
+        )
 
         eval_result = self._dialog_port.evaluate_turn(
             TurnEvaluationInput(
@@ -156,6 +162,7 @@ class SubmitDefenseTurnUseCase:
                 student_transcript=clean_transcript,
                 is_follow_up_turn=is_follow_up_turn,
                 previous_turns=previous_turns,
+                next_planned_question=next_question,
             )
         )
 
@@ -205,7 +212,14 @@ class SubmitDefenseTurnUseCase:
         elif session.current_question_index + 1 < len(session.planned_questions):
             session.advance_to_next_question(eval_result.transition_message)
         else:
-            overall_score, summary = self._build_final_summary(all_turns, eval_result, rubric)
+            student_name = (
+                project.authors[0].full_name.strip().split()[0].capitalize()
+                if project.authors and project.authors[0].full_name.strip()
+                else "estudiante"
+            )
+            overall_score, summary = self._build_final_summary(
+                all_turns, eval_result, rubric, student_name
+            )
             session.complete(overall_score=overall_score, summary=summary, completed_at=now)
 
         self._defense_repo.add_turn(turn)
@@ -224,7 +238,12 @@ class SubmitDefenseTurnUseCase:
         )
 
     @staticmethod
-    def _build_final_summary(turns: list[DefenseTurn], last_eval, rubric) -> tuple[float, FinalDefenseSummary]:
+    def _build_final_summary(
+        turns: list[DefenseTurn],
+        last_eval,
+        rubric,
+        student_name: str = "estudiante",
+    ) -> tuple[float, FinalDefenseSummary]:
         averages: dict[str, float] = {}
         for crit in rubric.criteria:
             vals = [
@@ -237,8 +256,9 @@ class SubmitDefenseTurnUseCase:
         overall = compute_weighted_score(averages, rubric)
         verdict = resolve_uts_verdict(overall)
         closing = (
-            f"Has concluido la sustentación ante AURA. Tu calificación consolidada preliminar es "
-            f"{overall:.2f} sobre 5.00, correspondiente al concepto {verdict.value}."
+            f"Excelente cierre, {student_name}. Has concluido tu sustentación ante AURA. "
+            f"Tu calificación consolidada preliminar es {overall:.2f} sobre 5.00, "
+            f"correspondiente al concepto {verdict.value}."
         )
         summary = FinalDefenseSummary(
             verdict=verdict,

@@ -1,6 +1,6 @@
-"""Adaptador de reconocimiento de voz (STT) usando Gemini Transcribe."""
-import base64
+"""Adaptador de reconocimiento de voz (STT) usando audio multimodal Gemini."""
 from collections.abc import Callable
+import logging
 from pathlib import Path
 import time
 from typing import Any
@@ -19,6 +19,8 @@ from app.infrastructure.adapters.gemini_client_helper import (
     extract_status_code,
 )
 
+logger = logging.getLogger(__name__)
+
 _ALLOWED_AUDIO_MIMES = {
     "audio/webm": "audio/webm",
     "audio/wav": "audio/wav",
@@ -36,12 +38,13 @@ _EXT_TO_MIME = {
 
 
 class GeminiTranscribeAdapter:
-    """Implementa SpeechSttPort sobre gemini-3.5-transcribe."""
+    """Implementa SpeechSttPort mediante models.generate_content con audio multimodal."""
 
     def __init__(
         self,
         api_key: str,
-        model: str = "gemini-3.5-transcribe",
+        model: str = "gemini-3.5-flash-lite",
+        fallback_models: list[str] | None = None,
         max_audio_bytes: int = 20 * 1024 * 1024,
         timeout_seconds: int = 45,
         max_retries: int = 1,
@@ -49,7 +52,9 @@ class GeminiTranscribeAdapter:
         client_factory: Callable[[], Any] | None = None,
     ) -> None:
         self._api_key = api_key
-        self._model = model.strip()
+        primary = model.strip() or "gemini-3.5-flash-lite"
+        extras = [m.strip() for m in (fallback_models or []) if m.strip() and m.strip() != primary]
+        self._models = [primary, *extras]
         self._max_audio_bytes = max_audio_bytes
         self._timeout_seconds = timeout_seconds
         self._max_retries = max_retries
@@ -59,7 +64,7 @@ class GeminiTranscribeAdapter:
     def _client(self) -> Any:
         if self._client_factory is not None:
             return self._client_factory()
-        return build_gemini_client(self._api_key, self._timeout_seconds, self._model)
+        return build_gemini_client(self._api_key, self._timeout_seconds, self._models[0])
 
     def transcribe(
         self,
@@ -82,7 +87,7 @@ class GeminiTranscribeAdapter:
 
         started = time.perf_counter()
         transcript, used_model = execute_with_failover(
-            [self._model],
+            self._models,
             self._max_retries,
             self._base_delay,
             lambda model: self._call_transcribe(model, audio_bytes, clean_mime, clean_vocab),
@@ -103,27 +108,54 @@ class GeminiTranscribeAdapter:
         mime_type: str,
         custom_vocabulary: list[str],
     ) -> str:
+        from google.genai import types
+
         client = self._client()
-        encoded_audio = base64.b64encode(audio_bytes).decode("ascii")
-        transcription_cfg: dict[str, Any] = {"language_codes": ["es-CO"]}
-        if custom_vocabulary:
-            transcription_cfg["custom_vocabulary"] = custom_vocabulary
+        prompt = self._build_transcription_prompt(custom_vocabulary)
+        audio_part = types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
 
         try:
-            interaction = client.interactions.create(
+            response = client.models.generate_content(
                 model=model,
-                input=[{"type": "audio", "data": encoded_audio, "mime_type": mime_type}],
-                generation_config={"transcription_config": transcription_cfg},
-                timeout=float(self._timeout_seconds),
+                contents=[audio_part, prompt],
+                config=types.GenerateContentConfig(temperature=0.0),
             )
-            return interaction.output_text or ""
+            return getattr(response, "text", None) or ""
         except FdcDomainError:
             raise
         except Exception as exc:
+            status_code = extract_status_code(exc)
+            logger.warning(
+                "Gemini STT falló | model=%s | status=%s | error_type=%s | detail=%s",
+                model,
+                status_code,
+                type(exc).__name__,
+                exc,
+            )
             raise AiProviderUnavailableError(
-                message="Error al transcribir el audio con Gemini Transcribe.",
-                context={"reason": str(exc), "model": model, "status_code": extract_status_code(exc)},
+                message="Error al transcribir el audio con Gemini multimodal.",
+                context={
+                    "reason": f"{type(exc).__name__}: {exc}",
+                    "model": model,
+                    "status_code": status_code,
+                },
             ) from exc
+
+    @staticmethod
+    def _build_transcription_prompt(custom_vocabulary: list[str]) -> str:
+        vocab_line = (
+            f"Vocabulario técnico de referencia del proyecto (respeta su ortografía si aparece en el audio): {', '.join(custom_vocabulary)}."
+            if custom_vocabulary
+            else ""
+        )
+        return (
+            "Eres un transcriptor literal de audio académico en español colombiano (es-CO). "
+            "Transcribe exactamente palabra por palabra lo que dice el estudiante en el audio, "
+            "manteniendo puntuación natural y sin resumir, corregir ideas ni añadir comentarios. "
+            "Devuelve únicamente el texto transcrito en texto plano (sin comillas ni Markdown). "
+            "Si el audio solo contiene silencio o ruido sin habla inteligible, devuelve una cadena vacía. "
+            f"{vocab_line}"
+        ).strip()
 
     @staticmethod
     def _resolve_mime(mime_type: str, filename: str) -> str:

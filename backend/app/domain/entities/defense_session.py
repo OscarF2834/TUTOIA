@@ -22,6 +22,7 @@ class PlannedQuestion:
     evaluation_focus: str
     pending_follow_up_text: str | None = None
     transition_message: str | None = None
+    source_section: str = ""
 
 
 @dataclass(frozen=True)
@@ -116,9 +117,15 @@ class DefenseSession:
         self.planned_questions[self.current_question_index] = replace(
             current,
             pending_follow_up_text=None,
-            transition_message=transition_message,
         )
         self.current_question_index += 1
+        clean_transition = (transition_message or "").strip() or None
+        if clean_transition and self.current_question_index < len(self.planned_questions):
+            next_q = self.planned_questions[self.current_question_index]
+            self.planned_questions[self.current_question_index] = replace(
+                next_q,
+                transition_message=clean_transition,
+            )
 
     def complete(self, overall_score: float, summary: FinalDefenseSummary, completed_at: datetime) -> None:
         resolve_defense_state(self.state).on_turn_evaluated_complete(self)
@@ -147,11 +154,20 @@ class DefenseSession:
         current = self.current_question()
         if self.is_current_prompt_follow_up(turns) and current.pending_follow_up_text:
             return current.pending_follow_up_text
+        if current.transition_message and current.transition_message.strip():
+            transition = current.transition_message.strip()
+            question = current.question_text.strip()
+            if question.lower() in transition.lower():
+                return transition
+            return f"{transition} {question}"
         return current.question_text
 
     def authorized_tts_texts(self, turns: list[DefenseTurn]) -> set[str]:
-        texts: set[str] = {q.question_text for q in self.planned_questions}
+        texts: set[str] = {self.active_prompt_text(turns)}
         for q in self.planned_questions:
+            texts.add(q.question_text)
+            if q.transition_message and q.transition_message.strip():
+                texts.add(f"{q.transition_message.strip()} {q.question_text.strip()}")
             if q.pending_follow_up_text:
                 texts.add(q.pending_follow_up_text)
         for t in turns:

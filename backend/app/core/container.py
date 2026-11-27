@@ -33,6 +33,7 @@ from app.domain.ports.defense_ai_ports import (
 from app.domain.ports.rubric_provider_port import RubricProviderPort
 from app.domain.strategies.fdc_analysis_strategy import FdcAnalysisStrategy
 from app.infrastructure.adapters.document_reader_adapter import DocumentReaderAdapter
+from app.infrastructure.adapters.edge_tts_adapter import EdgeTtsAdapter, FallbackTtsAdapter
 from app.infrastructure.adapters.gemini_defense_dialog_adapter import GeminiDefenseDialogAdapter
 from app.infrastructure.adapters.gemini_genai_adapter import GeminiGenAiAdapter
 from app.infrastructure.adapters.gemini_transcribe_adapter import GeminiTranscribeAdapter
@@ -88,24 +89,52 @@ class Container:
             max_retries=settings.GEMINI_MAX_RETRIES,
             base_delay_seconds=settings.GEMINI_RETRY_BASE_DELAY_SECONDS,
         )
-        self.tts_adapter: SpeechTtsPort = tts_adapter or GeminiTtsAdapter(
-            api_key=settings.GEMINI_API_KEY,
-            model=settings.GEMINI_TTS_MODEL,
-            fallback_models=settings.gemini_tts_fallback_models,
-            voice=settings.GEMINI_TTS_VOICE,
-            timeout_seconds=settings.GEMINI_TIMEOUT_SECONDS,
-            max_retries=settings.GEMINI_MAX_RETRIES,
-            base_delay_seconds=settings.GEMINI_RETRY_BASE_DELAY_SECONDS,
-        )
+        self.tts_adapter: SpeechTtsPort = self._build_tts_adapter(settings, tts_adapter)
         self.stt_adapter: SpeechSttPort = stt_adapter or GeminiTranscribeAdapter(
             api_key=settings.GEMINI_API_KEY,
             model=settings.GEMINI_TRANSCRIBE_MODEL,
+            fallback_models=settings.gemini_transcribe_fallback_models,
             max_audio_bytes=settings.defense_max_audio_bytes,
             timeout_seconds=settings.GEMINI_TIMEOUT_SECONDS,
             max_retries=settings.GEMINI_MAX_RETRIES,
             base_delay_seconds=settings.GEMINI_RETRY_BASE_DELAY_SECONDS,
         )
         self.event_bus = self._build_event_bus()
+
+    @staticmethod
+    def _build_tts_adapter(
+        settings: Settings,
+        tts_adapter: SpeechTtsPort | None,
+    ) -> SpeechTtsPort:
+        if tts_adapter is not None:
+            return tts_adapter
+        edge_adapter = EdgeTtsAdapter(voice=settings.EDGE_TTS_VOICE)
+        gemini_adapter = (
+            GeminiTtsAdapter(
+                api_key=settings.GEMINI_API_KEY,
+                model=settings.GEMINI_TTS_MODEL,
+                fallback_models=settings.gemini_tts_fallback_models,
+                voice=settings.GEMINI_TTS_VOICE,
+                timeout_seconds=settings.GEMINI_TIMEOUT_SECONDS,
+                max_retries=settings.GEMINI_MAX_RETRIES,
+                base_delay_seconds=settings.GEMINI_RETRY_BASE_DELAY_SECONDS,
+            )
+            if settings.GEMINI_API_KEY.strip()
+            else None
+        )
+        if settings.TTS_PROVIDER.strip().lower() == "gemini" and gemini_adapter is not None:
+            return FallbackTtsAdapter(
+                primary=gemini_adapter,
+                secondary=edge_adapter,
+                primary_name="gemini",
+                secondary_name="edge",
+            )
+        return FallbackTtsAdapter(
+            primary=edge_adapter,
+            secondary=gemini_adapter,
+            primary_name="edge",
+            secondary_name="gemini",
+        )
 
     @staticmethod
     def _build_analyzer(

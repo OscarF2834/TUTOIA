@@ -2,6 +2,7 @@
 import base64
 from collections.abc import Callable
 import io
+import logging
 from typing import Any
 import wave
 
@@ -12,6 +13,8 @@ from app.infrastructure.adapters.gemini_client_helper import (
     execute_with_failover,
     extract_status_code,
 )
+
+logger = logging.getLogger(__name__)
 
 _FORMAL_STYLE = (
     "Tono académico universitario formal, claro, sereno y natural en español colombiano "
@@ -44,7 +47,7 @@ class GeminiTtsAdapter:
         api_key: str,
         model: str,
         fallback_models: list[str],
-        voice: str = "Aoede",
+        voice: str = "Charon",
         timeout_seconds: int = 45,
         max_retries: int = 1,
         base_delay_seconds: float = 1.5,
@@ -52,7 +55,7 @@ class GeminiTtsAdapter:
     ) -> None:
         self._api_key = api_key
         self._models = [model.strip(), *[m.strip() for m in fallback_models if m.strip() and m.strip() != model.strip()]]
-        self._voice = voice.strip() or "Aoede"
+        self._voice = voice.strip() or "Charon"
         self._timeout_seconds = timeout_seconds
         self._max_retries = max_retries
         self._base_delay = base_delay_seconds
@@ -83,9 +86,17 @@ class GeminiTtsAdapter:
         except FdcDomainError:
             raise
         except Exception as exc:
+            status_code = extract_status_code(exc)
+            logger.warning(
+                "Gemini TTS falló | model=%s | status=%s | error_type=%s | detail=%s",
+                model,
+                status_code,
+                type(exc).__name__,
+                exc,
+            )
             raise AiProviderUnavailableError(
                 message="Error al sintetizar voz con Gemini TTS.",
-                context={"reason": str(exc), "model": model, "status_code": extract_status_code(exc)},
+                context={"reason": str(exc), "model": model, "status_code": status_code},
             ) from exc
 
     def _call_interactions_tts(self, client: Any, model: str, text: str) -> tuple[bytes, str]:

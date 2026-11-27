@@ -161,7 +161,7 @@ export function DefenseControlsBar({
                 )
               }
             >
-              Envío automático por silencio: {autoSubmitOnSilence ? "Activo" : "Manual"}
+              Envío automático tras 10s de silencio: {autoSubmitOnSilence ? "Activo" : "Manual"}
             </Button>
           </div>
 
@@ -180,10 +180,10 @@ export function DefenseControlsBar({
         {isRecording && (
           <p aria-live="polite" className="text-xs font-medium text-emerald-800">
             {silenceSeconds !== null
-              ? `Silencio detectado · enviando respuesta automáticamente en ${silenceSeconds} s…`
+              ? `Pausa detectada: finalizando en ${silenceSeconds} s… sigue hablando o pulsa «Terminar y enviar respuesta».`
               : hasSpoken
                 ? autoSubmitOnSilence
-                  ? "Voz detectada. Al finalizar tu idea (2.5 s de silencio) se enviará automáticamente."
+                  ? "Voz detectada. Al finalizar tu idea (10 s de silencio) se enviará automáticamente."
                   : "Grabando en modo manual. Pulsa «Terminar y enviar respuesta» cuando concluyas."
                 : "Micrófono abierto. Habla con claridad para iniciar tu respuesta."}
           </p>

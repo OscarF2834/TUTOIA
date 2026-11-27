@@ -43,8 +43,10 @@ class Settings(BaseSettings):
     GEMINI_FALLBACK_MODELS: str = "gemini-3.8-flash"
     GEMINI_TTS_MODEL: str = "gemini-3.8-flash-lite-tts"
     GEMINI_TTS_FALLBACK_MODELS: str = "gemini-2.5-flash-preview-tts"
-    GEMINI_TTS_VOICE: str = "Aoede"
-    GEMINI_TRANSCRIBE_MODEL: str = "gemini-3.5-transcribe"
+    GEMINI_TTS_VOICE: str = "Charon"
+    TTS_PROVIDER: str = "edge"
+    EDGE_TTS_VOICE: str = "es-CO-GonzaloNeural"
+    GEMINI_TRANSCRIBE_MODEL: str = "gemini-3.5-flash-lite"
     GEMINI_MAX_RETRIES: int = Field(default=1, ge=0)
     GEMINI_RETRY_BASE_DELAY_SECONDS: float = Field(default=1.5, ge=0.0)
     GEMINI_TIMEOUT_SECONDS: int = Field(default=45, ge=5)
@@ -81,6 +83,11 @@ class Settings(BaseSettings):
     def gemini_tts_fallback_models(self) -> list[str]:
         """Modelos de respaldo para síntesis de voz neuronal (TTS)."""
         return _parse_model_csv(self.GEMINI_TTS_FALLBACK_MODELS, self.GEMINI_TTS_MODEL)
+
+    @property
+    def gemini_transcribe_fallback_models(self) -> list[str]:
+        """Modelos de respaldo para transcripción multimodal de audio (STT)."""
+        return _parse_model_csv(self.GEMINI_FALLBACK_MODELS, self.GEMINI_TRANSCRIBE_MODEL)
 
     @property
     def fdc_max_upload_bytes(self) -> int:

@@ -14,6 +14,10 @@ class PlannedQuestionSchema(BaseModel):
     ]
     question_text: str = Field(min_length=15)
     evaluation_focus: str = Field(min_length=10)
+    source_section: str = Field(
+        default="",
+        description="Sección exacta del formato FDC consultada, ej. 'Descripción del problema · F-DC-124'.",
+    )
 
 
 class DefenseSessionPlanSchema(BaseModel):

@@ -17,7 +17,8 @@ export interface MicRecorderCallbacks {
 const BIN_COUNT = 28;
 const SPEECH_RMS_THRESHOLD = 0.02;
 const MIN_ACTIVE_SPEECH_MS = 1200;
-const AUTO_SUBMIT_SILENCE_MS = 2500;
+const AUTO_SUBMIT_SILENCE_MS = 10_000;
+const SILENCE_COUNTDOWN_SHOW_MS = 1000;
 const MIME_CANDIDATES = [
   "audio/webm;codecs=opus",
   "audio/webm",
@@ -222,7 +223,7 @@ export class InteractiveMicRecorderAdapter {
       );
       const hasSpoken = this.activeSpeechMs >= MIN_ACTIVE_SPEECH_MS;
       const countdown =
-        this.autoSubmitOnSilence && hasSpoken && this.silenceMs > 300
+        this.autoSubmitOnSilence && hasSpoken && this.silenceMs >= SILENCE_COUNTDOWN_SHOW_MS
           ? Math.max(0, AUTO_SUBMIT_SILENCE_MS - this.silenceMs)
           : null;
 

@@ -16,6 +16,7 @@ export interface PlannedQuestion {
   thematicAxis: string;
   questionText: string;
   evaluationFocus: string;
+  sourceSection: string;
 }
 
 export interface RubricCriterionScore {

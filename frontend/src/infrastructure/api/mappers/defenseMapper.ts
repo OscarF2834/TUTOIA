@@ -16,6 +16,7 @@ export interface PlannedQuestionDto {
   thematic_axis: string;
   question_text: string;
   evaluation_focus: string;
+  source_section?: string;
 }
 
 export interface CriterionScoreDto {
@@ -88,6 +89,7 @@ function mapPlannedQuestion(dto: PlannedQuestionDto): PlannedQuestion {
     thematicAxis: dto.thematic_axis,
     questionText: dto.question_text,
     evaluationFocus: dto.evaluation_focus,
+    sourceSection: dto.source_section ?? "",
   };
 }
 

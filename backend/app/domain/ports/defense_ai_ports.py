@@ -44,6 +44,7 @@ class TurnEvaluationInput:
     student_transcript: str
     is_follow_up_turn: bool
     previous_turns: list[DefenseTurn]
+    next_planned_question: PlannedQuestion | None = None
 
 
 @dataclass(frozen=True)

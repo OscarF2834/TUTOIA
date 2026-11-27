@@ -55,7 +55,11 @@ export class AuraAudioPlayerAdapter {
       if (runId !== this.activeRunId) return "tts";
       await this.playBlobWithAnalyser(blob, runId, onFrame);
       return "tts";
-    } catch {
+    } catch (error) {
+      console.warn(
+        "[AURA TTS] Falló la reproducción desde /tts; activando fallback speechSynthesis:",
+        error,
+      );
       if (runId !== this.activeRunId) return "web-speech";
       await this.playWebSpeechFallback(fallbackText, runId, onFrame);
       return "web-speech";

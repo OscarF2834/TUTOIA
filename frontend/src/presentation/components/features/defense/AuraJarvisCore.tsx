@@ -215,12 +215,7 @@ export function AuraJarvisCore({
 
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5 text-slate-100 shadow-sm">
-      <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-slate-400">
-        <span>Núcleo AURA · J.A.R.V.I.S.</span>
-        <span className="tabular-nums">UTS · Evaluación Oral</span>
-      </div>
-
-      <div className="my-3 flex items-center justify-center">
+      <div className="my-2 flex items-center justify-center">
         <canvas
           ref={canvasRef}
           aria-label={`Visualizador de estado de AURA: ${statusLabel}`}

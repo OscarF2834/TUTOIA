@@ -27,6 +27,7 @@ class PlannedQuestionHttpSchema(BaseModel):
     thematic_axis: str
     question_text: str
     evaluation_focus: str
+    source_section: str = ""
 
 
 class CriterionScoreHttpSchema(BaseModel):
@@ -137,6 +138,7 @@ class DefenseSessionResponseSchema(BaseModel):
                     thematic_axis=q.thematic_axis,
                     question_text=q.question_text,
                     evaluation_focus=q.evaluation_focus,
+                    source_section=q.source_section,
                 )
                 for q in s.planned_questions
             ],

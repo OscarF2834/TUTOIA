@@ -193,6 +193,11 @@ export default function DefenseRoomPage({ initialParams, onBackToFdc }: DefenseR
                     ? "Cierre de AURA"
                     : `Pregunta activa · ${currentAxisLabel}`
                 }
+                subtitle={
+                  session.state !== "COMPLETED" && currentQuestion?.sourceSection
+                    ? `Referencia documental: ${currentQuestion.sourceSection}`
+                    : undefined
+                }
                 headerAction={
                   session.isFollowUpPending ? (
                     <Badge variant="warning" size="sm">

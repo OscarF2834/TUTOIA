@@ -6,7 +6,7 @@ from app.domain.entities.fdc_document import FdcType
 
 
 class JuryProfileStrategy(ABC):
-    """Define rigor de evaluación y umbral de disparo de contrapregunta."""
+    """Define rigor de evaluación, tono conversacional y umbral de contrapregunta."""
 
     @property
     @abstractmethod
@@ -24,12 +24,16 @@ class JuryProfileStrategy(ABC):
         """Nota ponderada bajo la cual se dispara una contrapregunta."""
 
     @abstractmethod
-    def build_question_generation_guidance(self, fdc_type: FdcType) -> str:
+    def build_question_generation_guidance(
+        self, fdc_type: FdcType, student_name: str = "estudiante"
+    ) -> str:
         """Directrices para generar las 4 preguntas base según formato y jurado."""
 
     @abstractmethod
-    def build_turn_evaluation_guidance(self, fdc_type: FdcType) -> str:
-        """Directrices para evaluar la respuesta del estudiante."""
+    def build_turn_evaluation_guidance(
+        self, fdc_type: FdcType, student_name: str = "estudiante"
+    ) -> str:
+        """Directrices para evaluar la respuesta del estudiante y generar transición."""
 
     def should_trigger_follow_up(
         self,
@@ -47,7 +51,7 @@ class JuryProfileStrategy(ABC):
 
 
 class StandardUtsJuryStrategy(JuryProfileStrategy):
-    """Jurado institucional equilibrado conforme a la rúbrica UTS."""
+    """Jurado institucional cercano, dialogante y equilibrado conforme a la rúbrica UTS."""
 
     @property
     def profile(self) -> JuryProfile:
@@ -61,26 +65,31 @@ class StandardUtsJuryStrategy(JuryProfileStrategy):
     def follow_up_score_threshold(self) -> float:
         return 3.5
 
-    def build_question_generation_guidance(self, fdc_type: FdcType) -> str:
+    def build_question_generation_guidance(
+        self, fdc_type: FdcType, student_name: str = "estudiante"
+    ) -> str:
         scope = (
-            "propuesta de grado F-DC-124 (problema, fundamentación, plan de actividades y resultados esperados)"
+            "propuesta de trabajo de grado F-DC-124 (descripción del problema, justificación, objetivos con plan de actividades y resultados esperados)"
             if fdc_type == FdcType.FDC_124
-            else "informe final F-DC-125 (problema, fundamentación teórica, metodología ejecutada y resultados/validación)"
+            else "informe final F-DC-125 (planteamiento del problema, justificación, objetivos con metodología ejecutada y resultados/conclusiones)"
         )
         return (
-            f"Actúa como jurado institucional UTS equilibrado y formativo sobre {scope}. "
-            "Formula preguntas claras, directas y verificables que permitan al sustentante demostrar dominio."
+            f"Eres un jurado humano de las UTS cercano, respetuoso y conversacional dialogando con {student_name} sobre su {scope}. "
+            "Habla de tú natural y fluido, como en una sustentación real de sala universitaria, evitando preguntas rígidas tipo cuestionario."
         )
 
-    def build_turn_evaluation_guidance(self, fdc_type: FdcType) -> str:
+    def build_turn_evaluation_guidance(
+        self, fdc_type: FdcType, student_name: str = "estudiante"
+    ) -> str:
         return (
-            f"Evalúa de forma justa y objetiva contra la rúbrica UTS para {fdc_type.value}. "
-            "Si la respuesta omite evidencia clave o queda por debajo de 3.5, recomienda una contrapregunta breve."
+            f"Evalúa con objetividad y calidez académica la respuesta de {student_name} contra la rúbrica UTS y el documento {fdc_type.value}. "
+            "Redacta una transición humana breve que reaccione directamente a lo que respondió antes de avanzar, "
+            "y si omite puntos clave o la nota baja de 3.5 formula una contrapregunta conversacional."
         )
 
 
 class RigorousTechnicalJuryStrategy(JuryProfileStrategy):
-    """Jurado técnico riguroso centrado en ingeniería, método y validación empírica."""
+    """Jurado técnico riguroso pero dialogante, centrado en método, decisiones y evidencia."""
 
     @property
     def profile(self) -> JuryProfile:
@@ -94,19 +103,24 @@ class RigorousTechnicalJuryStrategy(JuryProfileStrategy):
     def follow_up_score_threshold(self) -> float:
         return 4.2
 
-    def build_question_generation_guidance(self, fdc_type: FdcType) -> str:
+    def build_question_generation_guidance(
+        self, fdc_type: FdcType, student_name: str = "estudiante"
+    ) -> str:
         scope = (
-            "propuesta técnica F-DC-124 (factibilidad, arquitectura/diseño planteado, riesgos y plan)"
+            "propuesta técnica F-DC-124 (problema, justificación técnica, coherencia objetivos-plan y métricas esperadas)"
             if fdc_type == FdcType.FDC_124
-            else "informe final F-DC-125 (decisiones técnicas, métricas de validación, límites y resultados)"
+            else "informe final F-DC-125 (decisiones de ingeniería, metodología aplicada, métricas y resultados reales)"
         )
         return (
-            f"Actúa como jurado técnico riguroso de ingeniería sobre {scope}. "
-            "Prioriza cuestionamientos profundos sobre decisiones técnicas, métricas, supuestos y vacíos críticos."
+            f"Eres un jurado técnico riguroso pero respetuoso y dialogante de las UTS conversando con {student_name} sobre su {scope}. "
+            "Combina cercanía humana (tratándolo por su nombre) con profundidad técnica sobre decisiones, supuestos y vacíos del FDC."
         )
 
-    def build_turn_evaluation_guidance(self, fdc_type: FdcType) -> str:
+    def build_turn_evaluation_guidance(
+        self, fdc_type: FdcType, student_name: str = "estudiante"
+    ) -> str:
         return (
-            f"Exige precisión conceptual, técnica y metodológica para {fdc_type.value}. "
-            "Penaliza respuestas genéricas o sin respaldo en evidencia del documento y solicita aclaración si nota < 4.2."
+            f"Contrasta con rigor lo dicho por {student_name} frente al contenido real de su {fdc_type.value}. "
+            "Penaliza respuestas genéricas sin respaldo en el proyecto, reconoce brevemente lo acertado en una transición humana "
+            "y pide aclaración técnica directa en lenguaje natural si la nota es inferior a 4.2."
         )
